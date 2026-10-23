@@ -1,0 +1,427 @@
+/*
+ * 07_pps_manual_voltage_reconnect - CH32X035F8U6 (QFN20)
+ *
+ * USB PD/PPS manual voltage with cable removal / reinsertion recovery.
+ * Debug terminal: WCH-LinkE (PC18/DIO IC pin14, PC19/DCK IC pin16)
+ * CC1: PC14 IC pin19; CC2: PC15 IC pin20.
+ * Status LED: PB12 IC pin15.
+ *
+ * Use Ubuntu-side local echo. Do NOT add printf to handle_debug_input().
+ * This is a test candidate, not yet verified on physical hardware.
+ */
+#include "ch32fun.h"
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+#include "console_parse.h"
+#include "reconnect_policy.h"
+
+#define USBPD_IMPLEMENTATION
+#include "usbpd_current.h"
+
+#define LED_PIN                    PB12
+#define LED_ON                     FUN_HIGH
+#define LED_OFF                    FUN_LOW
+#define INITIAL_VOLTAGE_MV         7000u
+#define PPS_REQUEST_CURRENT_MA     1000u  /* Limit, not load current. */
+#define PPS_REFRESH_PERIOD_MS      3000u
+#define PPS_RESPONSE_TIMEOUT_MS    2000u
+#define PPS_SEND_TIMEOUT_MS        1000u
+#define NEGOTIATE_TIMEOUT_MS      20000u
+#define RETRY_DELAY_MS             1200u
+#define CC_DETACH_DEBOUNCE_MS       150u
+#define INPUT_LINE_SIZE              32u
+
+static volatile uint32_t s_ms;
+static char s_line[INPUT_LINE_SIZE];
+static unsigned s_line_length;
+static bool s_line_ready;
+static bool s_line_overflow;
+static bool s_last_was_newline;
+
+/* Same receive-only handler as the previously working original firmware. */
+void handle_debug_input(int length, uint8_t *bytes)
+{
+    for (int i = 0; i < length; ++i) {
+        const uint8_t c = bytes[i];
+        if (s_line_ready) continue;
+        if (c == '\r' || c == '\n') {
+            if (s_last_was_newline) continue;
+            s_last_was_newline = true;
+            s_line[s_line_length] = '\0';
+            s_line_ready = true;
+            continue;
+        }
+        s_last_was_newline = false;
+        if (c == 8u || c == 127u) {
+            if (s_line_length) --s_line_length;
+            continue;
+        }
+        if (s_line_length + 1u < INPUT_LINE_SIZE) {
+            s_line[s_line_length++] = (char)c;
+        } else {
+            s_line_overflow = true;
+        }
+    }
+}
+
+static void systick_init_ms(void);
+
+static void led_init(void)
+{
+    funGpioInitAll();
+    funPinMode(LED_PIN, GPIO_Speed_10MHz | GPIO_CNF_OUT_PP);
+    funDigitalWrite(LED_PIN, LED_OFF);
+}
+
+typedef enum {
+    MODE_NEGOTIATING,
+    MODE_READY,
+    MODE_UNSUPPORTED,
+    MODE_RETRY_DELAY
+} SessionMode;
+
+typedef struct {
+    SessionMode mode;
+    uint32_t desired_mv;        /* Retained through unplug/replug. */
+    uint32_t negotiated_start_ms;
+    bool negotiating_started;
+    uint32_t last_pps_ms;
+    uint32_t retry_start_ms;
+    uint8_t pdo_index;
+    CCDetachFilter detach;
+} Session;
+
+static const char *session_mode_name(SessionMode mode)
+{
+    switch (mode) {
+        case MODE_NEGOTIATING: return "Negotiating";
+        case MODE_READY:       return "PPS ready";
+        case MODE_UNSUPPORTED: return "No usable PPS APDO";
+        case MODE_RETRY_DELAY: return "Retry delay";
+        default: return "Unknown";
+    }
+}
+
+/* Restart software and peripheral PD state without resetting the whole MCU
+ * or the SWIO console. In particular, do not leave BMC RX/TX running from the
+ * former attachment when resetting the PD state machine.
+ */
+static void pd_reinitialize(Session *session)
+{
+    funDigitalWrite(LED_PIN, LED_OFF);
+    USBPD_Reset();                 /* Disable USBPD IRQ and clear its state. */
+    RCC->AHBPCENR |= RCC_USBPD;    /* Required even on the very first init. */
+    USBPD->CONTROL = 0u;           /* Stop BMC RX/TX prior to reconfiguration. */
+    const USBPD_Result_e rc = USBPD_Init(eUSBPD_VCC_3V3);
+    USBPD_Reset();                 /* Begin in IDLE, USBPD IRQ disabled. */
+    cc_detach_filter_clear(&session->detach);
+    session->negotiated_start_ms = 0u;
+    session->negotiating_started = false;
+    session->mode = (rc == eUSBPD_OK) ? MODE_NEGOTIATING : MODE_RETRY_DELAY;
+    session->retry_start_ms = s_ms;
+    session->pdo_index = 0xffu;
+    if (rc != eUSBPD_OK)
+        printf("ERROR: PD init=%s; will retry\n", USBPD_ResultToStr(rc));
+}
+
+static void schedule_retry(Session *session, const char *reason)
+{
+    printf("PD: %s; retry in %ums (unplug/replug is also supported)\n",
+           reason, RETRY_DELAY_MS);
+    funDigitalWrite(LED_PIN, LED_OFF);
+    USBPD_Reset();
+    USBPD->CONTROL = 0u;
+    session->mode = MODE_RETRY_DELAY;
+    session->retry_start_ms = s_ms;
+    session->pdo_index = 0xffu;
+    cc_detach_filter_clear(&session->detach);
+}
+
+static int choose_pps_pdo(uint32_t mv, bool dump)
+{
+    USBPD_SPR_CapabilitiesMessage_t *caps = NULL;
+    const size_t count = USBPD_GetCapabilities(&caps);
+    if (!caps || !count) return -1;
+    if (dump) printf("PD: Source PDO count=%u\n", (unsigned)count);
+
+    int best = -1;
+    uint32_t best_ma = 0u;
+    for (size_t i = 0; i < count; ++i) {
+        const USBPD_SourcePDO_t *pdo = &caps->Source[i];
+        if (!USBPD_IsPPS(pdo)) continue;
+        const uint32_t min_mv = pdo->SPR_PPS.MinVoltageIn100mV * 100u;
+        const uint32_t max_mv = pdo->SPR_PPS.MaxVoltageIn100mV * 100u;
+        const uint32_t max_ma = pdo->SPR_PPS.MaxCurrentIn50mA * 50u;
+        if (dump) printf("PD: PDO[%u] PPS %lu-%lu mV, max %lu mA\n",
+            (unsigned)i, (unsigned long)min_mv, (unsigned long)max_mv,
+            (unsigned long)max_ma);
+        if (mv >= min_mv && mv <= max_mv &&
+            max_ma >= PPS_REQUEST_CURRENT_MA && max_ma > best_ma) {
+            best = (int)i;
+            best_ma = max_ma;
+        }
+    }
+    return best;
+}
+
+/* A transport timeout is recoverable and must not halt the whole firmware. */
+static bool send_and_wait_pps(uint8_t index, uint32_t mv, const char *reason)
+{
+    USBPD_Result_e result = eUSBPD_BUSY;
+    uint32_t start = s_ms;
+    do {
+        result = USBPD_SelectPPS(index, mv, PPS_REQUEST_CURRENT_MA);
+        if (result != eUSBPD_BUSY) break;
+        Delay_Ms(5);
+    } while ((uint32_t)(s_ms - start) < PPS_SEND_TIMEOUT_MS);
+
+    const bool quiet_refresh = (strcmp(reason, "refresh") == 0);
+    if (!quiet_refresh || result != eUSBPD_OK)
+        printf("PPS: %s %lu mV / %u mA, send=%s, state=%s\n",
+            reason, (unsigned long)mv, PPS_REQUEST_CURRENT_MA,
+            USBPD_ResultToStr(result), USBPD_StateToStr(USBPD_GetState()));
+    if (result != eUSBPD_OK) return false;
+
+    start = s_ms;
+    while ((uint32_t)(s_ms - start) < PPS_RESPONSE_TIMEOUT_MS) {
+        const USBPD_State_e state = USBPD_GetState();
+        if (state == eSTATE_PS_RDY) {
+            if (!quiet_refresh)
+                printf("PPS: %s PS_RDY at requested %lu mV\n",
+                    reason, (unsigned long)mv);
+            return true;
+        }
+        if (state != eSTATE_WAIT_ACCEPT && state != eSTATE_WAIT_PS_RDY) {
+            printf("ERROR: unexpected PD state=%s\n", USBPD_StateToStr(state));
+            return false;
+        }
+        Delay_Ms(10);
+    }
+    printf("ERROR: PPS response timeout, state=%s\n",
+        USBPD_StateToStr(USBPD_GetState()));
+    return false;
+}
+
+static void print_help(void)
+{
+    printf("Type voltage then ENTER, e.g. 7.02 or 7020 (mV).\n");
+    printf("  status (s): PD state, connection, retained target voltage\n");
+    printf("  retry (r) : restart the PD session without MCU reset\n");
+    printf("  help (?)  : show this text\n");
+    printf("  PPS step: 20mV; range checked against attached charger's APDO.\n");
+    printf("  Target voltage is retained after cable replug.\n");
+    printf("  PS_RDY is NOT a voltage measurement.\n");
+}
+
+static void print_status(const Session *session)
+{
+    printf("STATUS: desired=%lu mV, current limit=%u mA, mode=%s, PD=%s, PDO=%d\n",
+        (unsigned long)session->desired_mv, PPS_REQUEST_CURRENT_MA,
+        session_mode_name(session->mode), USBPD_StateToStr(USBPD_GetState()),
+        session->pdo_index == 0xffu ? -1 : (int)session->pdo_index);
+}
+
+static void accept_pps_after_fixed_contract(Session *session)
+{
+    printf("PD: negotiate=OK, state=%s\n", USBPD_StateToStr(USBPD_GetState()));
+    const int index = choose_pps_pdo(session->desired_mv, true);
+    if (index < 0) {
+        printf("WARN: no PPS APDO supports %lumV/%umA; 5V fixed contract remains.\n",
+               (unsigned long)session->desired_mv, PPS_REQUEST_CURRENT_MA);
+        session->mode = MODE_UNSUPPORTED;
+        return;
+    }
+    if (!send_and_wait_pps((uint8_t)index, session->desired_mv, "restore")) {
+        schedule_retry(session, "initial PPS request failed");
+        return;
+    }
+    session->pdo_index = (uint8_t)index;
+    session->mode = MODE_READY;
+    session->last_pps_ms = s_ms;
+    funDigitalWrite(LED_PIN, LED_ON);
+    printf("PD: PPS ready; restored target %lu mV\n",
+           (unsigned long)session->desired_mv);
+    print_status(session);
+    printf("V> ");
+}
+
+static void process_command(Session *session)
+{
+    if (!s_line_ready) return;
+    char local[INPUT_LINE_SIZE];
+    const bool overflow = s_line_overflow;
+    memcpy(local, s_line, sizeof(local));
+    s_line_length = 0u;
+    s_line_overflow = false;
+    s_line_ready = false;
+    if (overflow) {
+        printf("ERROR: command too long\n");
+    } else if (!strcmp(local, "help") || !strcmp(local, "?")) {
+        print_help();
+    } else if (!strcmp(local, "status") || !strcmp(local, "s")) {
+        print_status(session);
+    } else if (!strcmp(local, "retry") || !strcmp(local, "r")) {
+        schedule_retry(session, "manual restart");
+    } else if (local[0]) {
+        uint32_t new_mv = 0u;
+        if (!parse_voltage_mv(local, &new_mv)) {
+            printf("ERROR: enter volts (7.02) or millivolts (7020)\n");
+        } else if (new_mv % 20u) {
+            printf("ERROR: PPS voltage must be a multiple of 20mV\n");
+        } else if (new_mv < 5000u || new_mv > 21000u) {
+            printf("ERROR: allowed target range is 5000..21000mV, subject to APDO\n");
+        } else if (session->mode == MODE_READY || session->mode == MODE_UNSUPPORTED) {
+            const int new_index = choose_pps_pdo(new_mv, false);
+            if (new_index < 0) {
+                printf("ERROR: %lumV not supported by attached charger's PPS APDO\n",
+                       (unsigned long)new_mv);
+            } else if (new_mv == session->desired_mv &&
+                       session->mode == MODE_READY &&
+                       (uint8_t)new_index == session->pdo_index) {
+                printf("PPS: unchanged (%lumV)\n", (unsigned long)new_mv);
+            } else {
+                /* Save target before sending, so failed command can be
+                 * restored on a later successful PD session. */
+                session->desired_mv = new_mv;
+                funDigitalWrite(LED_PIN, LED_OFF);
+                if (!send_and_wait_pps((uint8_t)new_index, new_mv, "set")) {
+                    schedule_retry(session, "PPS change failed");
+                } else {
+                    session->pdo_index = (uint8_t)new_index;
+                    session->mode = MODE_READY;
+                    session->last_pps_ms = s_ms;
+                    funDigitalWrite(LED_PIN, LED_ON);
+                    print_status(session);
+                }
+            }
+        } else {
+            session->desired_mv = new_mv;
+            printf("PPS: saved target %lumV; will apply after reconnect\n",
+                   (unsigned long)new_mv);
+        }
+    }
+    printf("V> ");
+}
+
+static void tick_session(Session *session)
+{
+    const uint32_t now = s_ms;
+    if (session->mode == MODE_RETRY_DELAY) {
+        if ((uint32_t)(now - session->retry_start_ms) >= RETRY_DELAY_MS) {
+            pd_reinitialize(session);
+            printf("PD: ready to detect charger\n");
+        }
+        return;
+    }
+
+    /* Only read the active comparator (no CC_SEL writes while RX is live).
+     * ActiveCCPresent is not valid in the IDLE state. */
+    const USBPD_State_e state = USBPD_GetState();
+    if (state != eSTATE_IDLE) {
+        if (cc_detach_filter_update(&session->detach,
+                USBPD_ActiveCCPresent(), now, CC_DETACH_DEBOUNCE_MS)) {
+            printf("PD: cable detached; waiting for reconnect\n");
+            pd_reinitialize(session);
+            printf("V> ");
+            return;
+        }
+    } else {
+        cc_detach_filter_clear(&session->detach);
+    }
+
+    if (session->mode == MODE_NEGOTIATING) {
+        const USBPD_Result_e rc = USBPD_SinkNegotiate();
+        const USBPD_State_e next_state = USBPD_GetState();
+        if (next_state == eSTATE_IDLE) {
+            /* Not connected: wait indefinitely, don't count as timeout. */
+            session->negotiated_start_ms = 0u;
+            session->negotiating_started = false;
+            return;
+        }
+        if (!session->negotiating_started) {
+            session->negotiated_start_ms = now;
+            session->negotiating_started = true;
+            printf("PD: cable detected; negotiating\n");
+        }
+        if (rc == eUSBPD_OK) {
+            accept_pps_after_fixed_contract(session);
+        } else if (rc != eUSBPD_BUSY) {
+            printf("ERROR: negotiate=%s\n", USBPD_ResultToStr(rc));
+            schedule_retry(session, "PD negotiate failed");
+        } else if ((uint32_t)(now - session->negotiated_start_ms) > NEGOTIATE_TIMEOUT_MS) {
+            printf("ERROR: PD negotiation timeout, state=%s\n",
+                   USBPD_StateToStr(next_state));
+            schedule_retry(session, "negotiation timeout");
+        }
+        return;
+    }
+
+    if (session->mode == MODE_READY || session->mode == MODE_UNSUPPORTED) {
+        if (state != eSTATE_PS_RDY) {
+            printf("ERROR: PD contract lost, state=%s\n", USBPD_StateToStr(state));
+            schedule_retry(session, "lost PD contract");
+            return;
+        }
+        if (session->mode == MODE_READY &&
+                (uint32_t)(now - session->last_pps_ms) >= PPS_REFRESH_PERIOD_MS) {
+            if (!send_and_wait_pps(session->pdo_index, session->desired_mv, "refresh")) {
+                schedule_retry(session, "PPS refresh failed");
+            } else {
+                session->last_pps_ms = s_ms;
+            }
+        }
+    }
+}
+
+int main(void)
+{
+    SystemInit();
+    led_init();
+    systick_init_ms();
+    WaitForDebuggerToAttach(0);
+    printf("BOOT: CH32X035 PPS manual voltage console (auto reconnect)\n");
+    printf("PPS RDO voltage resolution: 20mV\n");
+
+    Session session = {0};
+    session.desired_mv = INITIAL_VOLTAGE_MV;
+    session.pdo_index = 0xffu;
+    RCC->APB2PCENR |= RCC_APB2Periph_AFIO | RCC_APB2Periph_GPIOA;
+    pd_reinitialize(&session);
+    print_help();
+    printf("PD: waiting for charger (plug/unplug supported)\n");
+    printf("V> ");
+
+    for (;;) {
+        poll_input();
+        process_command(&session);
+        tick_session(&session);
+        /* Keep CC detection/initial PD negotiation responsive. */
+        Delay_Ms(session.mode == MODE_NEGOTIATING ? 1u : 10u);
+    }
+}
+
+static void systick_init_ms(void)
+{
+    SysTick->CTLR = 0;
+    NVIC_EnableIRQ(SysTick_IRQn);
+    uint64_t cnt = SysTick->CNTL | ((uint64_t)SysTick->CNTH << 32);
+    cnt += (FUNCONF_SYSTEM_CORE_CLOCK / 1000u) - 1u;
+    SysTick->CMPL = (uint32_t)(cnt & 0xFFFFFFFFu);
+    SysTick->CMPH = (uint32_t)(cnt >> 32);
+    s_ms = 0u;
+    SysTick->CTLR = SYSTICK_CTLR_STE | SYSTICK_CTLR_STIE | SYSTICK_CTLR_STCLK;
+}
+
+void SysTick_Handler(void) __attribute__((interrupt));
+void SysTick_Handler(void)
+{
+    uint64_t cnt = SysTick->CNTL | ((uint64_t)SysTick->CNTH << 32);
+    cnt += (FUNCONF_SYSTEM_CORE_CLOCK / 1000u) - 1u;
+    SysTick->CMPL = (uint32_t)(cnt & 0xFFFFFFFFu);
+    SysTick->CMPH = (uint32_t)(cnt >> 32);
+    SysTick->SR = 0;
+    s_ms++;
+}
