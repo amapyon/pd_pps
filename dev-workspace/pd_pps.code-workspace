@@ -1,0 +1,179 @@
+{
+    "folders":  [
+                    {
+                        "name":  "pd_pps",
+                        "path":  "src/pd_pps"
+                    },
+                    {
+                        "name":  "Workspace Tools",
+                        "path":  "."
+                    }
+                ],
+    "settings":  {
+                     "files.exclude":  {
+                                           "**/*.bin":  true,
+                                           "**/*.elf":  true,
+                                           "**/*.hex":  true,
+                                           "**/*.map":  true,
+                                           "**/*.lst":  true,
+                                           "**/*.o":  true,
+                                           "**/*.d":  true
+                                       },
+                     "search.exclude":  {
+                                            "**/*.bin":  true,
+                                            "**/*.elf":  true,
+                                            "**/*.hex":  true,
+                                            "**/*.map":  true,
+                                            "**/*.lst":  true,
+                                            "**/*.o":  true,
+                                            "**/*.d":  true,
+                                            "**/ch32fun/**":  true
+                                        }
+                 },
+    "tasks":  {
+                  "version":  "2.0.0",
+                  "tasks":  [
+                                {
+                                    "label":  "PD PPS: Build (select project)",
+                                    "type":  "process",
+                                    "command":  "powershell.exe",
+                                    "args":  [
+                                                 "-NoProfile",
+                                                 "-ExecutionPolicy",
+                                                 "Bypass",
+                                                 "-File",
+                                                 "${workspaceFolder:pd_pps}/../../pd-pps.ps1",
+                                                 "-Action",
+                                                 "Build",
+                                                 "-Project",
+                                                 "${input:pdppsProject}"
+                                             ],
+                                    "options":  {
+                                                    "cwd":  "${workspaceFolder:pd_pps}"
+                                                },
+                                    "problemMatcher":  [
+                                                           "$gcc"
+                                                       ],
+                                    "presentation":  {
+                                                         "reveal":  "always",
+                                                         "panel":  "dedicated",
+                                                         "clear":  true
+                                                     },
+                                    "group":  {
+                                                  "kind":  "build",
+                                                  "isDefault":  true
+                                              },
+                                    "detail":  "Select an example and build without flashing."
+                                },
+                                {
+                                    "label":  "PD PPS: Build and flash (select project)",
+                                    "type":  "process",
+                                    "command":  "powershell.exe",
+                                    "args":  [
+                                                 "-NoProfile",
+                                                 "-ExecutionPolicy",
+                                                 "Bypass",
+                                                 "-File",
+                                                 "${workspaceFolder:pd_pps}/../../pd-pps.ps1",
+                                                 "-Action",
+                                                 "Flash",
+                                                 "-Project",
+                                                 "${input:pdppsProject}"
+                                             ],
+                                    "options":  {
+                                                    "cwd":  "${workspaceFolder:pd_pps}"
+                                                },
+                                    "problemMatcher":  [
+                                                           "$gcc"
+                                                       ],
+                                    "presentation":  {
+                                                         "reveal":  "always",
+                                                         "panel":  "dedicated",
+                                                         "clear":  true
+                                                     },
+                                    "detail":  "Build, identify TARGET.bin, then flash that image."
+                                },
+                                {
+                                    "label":  "PD PPS: Check WCH-LinkE",
+                                    "type":  "process",
+                                    "command":  "powershell.exe",
+                                    "args":  [
+                                                 "-NoProfile",
+                                                 "-ExecutionPolicy",
+                                                 "Bypass",
+                                                 "-File",
+                                                 "${workspaceFolder:pd_pps}/../../pd-pps.ps1",
+                                                 "-Action",
+                                                 "Probe"
+                                             ],
+                                    "options":  {
+                                                    "cwd":  "${workspaceFolder:pd_pps}"
+                                                },
+                                    "problemMatcher":  [
+
+                                                       ],
+                                    "presentation":  {
+                                                         "reveal":  "always",
+                                                         "panel":  "dedicated",
+                                                         "clear":  true
+                                                     },
+                                    "detail":  "Read target information without writing."
+                                },
+                                {
+                                    "label":  "PD PPS: Debug log (minichlink -T)",
+                                    "type":  "process",
+                                    "command":  "powershell.exe",
+                                    "args":  [
+                                                 "-NoProfile",
+                                                 "-ExecutionPolicy",
+                                                 "Bypass",
+                                                 "-File",
+                                                 "${workspaceFolder:pd_pps}/../../pd-pps.ps1",
+                                                 "-Action",
+                                                 "Log"
+                                             ],
+                                    "options":  {
+                                                    "cwd":  "${workspaceFolder:pd_pps}"
+                                                },
+                                    "problemMatcher":  [
+
+                                                       ],
+                                    "presentation":  {
+                                                         "reveal":  "always",
+                                                         "panel":  "dedicated",
+                                                         "clear":  true
+                                                     },
+                                    "detail":  "SWIO debugprintf monitor. Ctrl+C stops it."
+                                }
+                            ],
+                  "inputs":  [
+                                 {
+                                     "id":  "pdppsProject",
+                                     "type":  "pickString",
+                                     "description":  "PD PPS: choose Makefile project",
+                                     "options":  [
+                                                     "01_led_blink",
+                                                     "02_pd_5v",
+                                                     "03_pd_9v",
+                                                     "04_pps_6v",
+                                                     "05_pps_sweep",
+                                                     "06_pps_current_limit",
+                                                     "07_pps_manual_voltage",
+                                                     "07_pps_manual_voltage_2",
+                                                     "07_pps_manual_voltage_echo/07_pps_manual_voltage",
+                                                     "07_pps_manual_voltage_reconnect",
+                                                     "07_pps_manual_voltage_reconnect_v2",
+                                                     "07_pps_manual_voltage_reconnect_v3",
+                                                     "08_pps_manual_voltage_current_reconnect_v1",
+                                                     "08_pps_manual_voltage_current_reconnect_v2",
+                                                     "09_adc_standalone",
+                                                     "09_adc_vbus_monitor",
+                                                     "09_pps_adc_voltage",
+                                                     "10_pps_adc_calibrated",
+                                                     "11_pps_ina226_monitor"
+                                                 ],
+                                     "default":  "11_pps_ina226_monitor"
+                                 }
+                             ]
+              }
+}
