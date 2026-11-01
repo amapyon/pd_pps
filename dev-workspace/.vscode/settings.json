@@ -1,0 +1,12 @@
+{
+    "files.exclude":  {
+                          "workspace-backups":  true,
+                          "tools":  true,
+                          "src":  true
+                      },
+    "search.exclude":  {
+                           "workspace-backups":  true,
+                           "tools":  true,
+                           "src":  true
+                       }
+}

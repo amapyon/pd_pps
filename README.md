@@ -1,50 +1,87 @@
 # PD PPS 開発ワークスペース
 
-CH32X035を使用したUSB Power Delivery（PD）／Programmable Power Supply（PPS）の実験用VS Codeワークスペースです。
+CH32X035を使用したUSB Power Delivery（PD）／Programmable Power Supply（PPS）の実験用Visual Studio Codeワークスペースです。
 
-このワークスペースでは、各実験を独立したフォルダーとして残し、過去の実験を参照しながら次の実験を追加します。ソースコードを一つのプロジェクトに統合することは当面行いません。
+**運用方針（方針A）：** 各実験を独立した番号付きフォルダーとして残し、過去の実験を参照しながら次の実験を追加します。当面、既存プロジェクトの大規模な移動・統合は行いません。
+
+このREADMEは **Gitリポジトリ `src/pd_pps` の直下** にあります。日常的に使うワークスペース設定やPowerShellスクリプトは、従来の場所で実行しつつ、`dev-workspace/` にコピーして同じGitリポジトリで履歴管理します。
 
 ## 1. 開発環境
 
 | 項目 | 内容 |
 |---|---|
 | OS | Windows 11 |
-| エディター | Visual Studio Code |
-| MCU | CH32X035（WeActStudio CH32X035 CoreBoard） |
+| エディター | Visual Studio Code（マルチルートワークスペース） |
+| MCU | WeActStudio CH32X035 CoreBoard（CH32X035） |
 | 書き込み・デバッグ | WCH-LinkE、ch32funの`minichlink` |
 | ビルド | RISC-V GCC、GNU Make（xPack） |
-| 操作 | Windows PowerShell 5.1／`pd-pps.ps1` |
-| バージョン管理 | Git（`src/pd_pps`がリポジトリ） |
+| 操作 | Windows PowerShell 5.1、`pd-pps.ps1` |
+| バージョン管理 | Git / GitHub（[`amapyon/pd_pps`](https://github.com/amapyon/pd_pps)） |
 
-ビルドツールのパスは `pd-pps.ps1` に定義されています。既存の設定では、`tools/xpack-riscv-none-elf-gcc-14.2.0-3` と `tools/xpack-windows-build-tools-4.4.1-3` を使用します。ツールのバージョンを変える場合は、同スクリプトのパスを確認してください。
+既存の`pd-pps.ps1`は、`tools/xpack-riscv-none-elf-gcc-14.2.0-3`と`tools/xpack-windows-build-tools-4.4.1-3`の配置を前提としています。ツールチェーンの変更時はスクリプト側のパスも確認してください。
 
-## 2. フォルダー構成
+## 2. フォルダー構成とGit管理の範囲
 
-    C:\pj\pd_pps\
-    ├── README.md                         ← 本書
-    ├── pd_pps.code-workspace             ← VS Codeワークスペース設定
-    ├── pd-pps.ps1                        ← Build / Flash / Probe / Log
-    ├── organize-pdpps-workspace.ps1     ← 実験一覧の検出・設定更新
-    ├── workspace-backups\               ← ワークスペース設定のバックアップ
-    ├── tools\                           ← 開発ツール
-    └── src\
-        └── pd_pps\                      ← Gitリポジトリ
-            ├── ch32fun\                 ← ライブラリ・書き込みツール
-            ├── 01_led_blink\
-            ├── ...
-            ├── 10_pps_adc_calibrated\
-            └── 11_pps_ina226_monitor\
+```text
+C:\pj\pd_pps\                              # ワークスペース全体（Git管理外）
+├── pd_pps.code-workspace                  # 日常使用するVS Code設定
+├── pd-pps.ps1                            # Build / Flash / Probe / Log
+├── organize-pdpps-workspace.ps1          # 実験選択リストを更新
+├── setup-workspace-view.ps1              # マルチルート表示の初期設定
+├── install-pd-pps-tools.ps1              # 開発ツール導入用
+├── install-zadig.ps1                     # USBドライバー関連の補助
+├── env.ps1                               # ローカル環境用（通常Git管理しない）
+├── .vscode\
+│   └── settings.json                     # Workspace Tools側の表示設定
+├── workspace-backups\                    # 設定変更前のバックアップ
+├── tools\                                # コンパイラ等の実行ファイル
+└── src\
+    └── pd_pps\                          # Gitリポジトリ
+        ├── README.md                     # 本書（Git管理対象）
+        ├── .gitignore
+        ├── .gitmodules
+        ├── ch32fun\                      # Gitサブモジュール
+        ├── 01_led_blink\
+        ├── ...
+        ├── 10_pps_adc_calibrated\
+        ├── 11_pps_ina226_monitor\
+        └── dev-workspace\               # 開発環境設定のGit管理用コピー
+            ├── capture-workspace.ps1
+            ├── pd_pps.code-workspace
+            ├── pd-pps.ps1
+            ├── organize-pdpps-workspace.ps1
+            ├── setup-workspace-view.ps1
+            ├── install-pd-pps-tools.ps1
+            ├── install-zadig.ps1
+            └── .vscode\
+                └── settings.json
+```
 
-**注意：** `README.md`、`pd-pps.ps1`、`pd_pps.code-workspace` など、ワークスペース直下のファイルは `src/pd_pps` のGitリポジトリの外側です。Gitで共有・バックアップする場合は別途管理が必要です。
+**二つの場所の役割に注意してください。**
+
+- **実行用（`C:\pj\pd_pps\`）：** VS Codeが開く`.code-workspace`と、実際に実行する`*.ps1`。通常はこちらを編集します。
+- **Git管理用（`src\pd_pps\dev-workspace\`）：** 実行用ファイルのスナップショット。`capture-workspace.ps1`で実行用ファイルをコピーして更新します。
+- **Gitリポジトリ本体（`src\pd_pps\`）：** 実験ソース、README、`dev-workspace`。`git status`・`git commit`・`git push`はここで実行します。
+
+実行用とGit管理用は**自動同期されません**。設定を変更したら、コピーしてからコミットしてください。`tools/`、`workspace-backups/`、通常の`env.ps1`は管理用コピーに含めません。
 
 ## 3. VS Codeで開く
 
 PowerShellから次を実行します。
 
-    cd C:\pj\pd_pps
-    code .\pd_pps.code-workspace
+```powershell
+cd C:\pj\pd_pps
+code .\pd_pps.code-workspace
+```
 
-VS Codeでは `pd_pps` フォルダーがエクスプローラーに表示されます。ビルド生成物（`.bin`、`.elf`、`.o` など）はワークスペース設定により非表示になり、通常の検索では生成物および `ch32fun` 配下が除外されます。ファイル自体は削除されません。
+エクスプローラーには、以下の2ルートが表示されます。
+
+| ルート | 内容 |
+|---|---|
+| `pd_pps` | Git管理下の実験プロジェクト、README、`dev-workspace` |
+| `Workspace Tools` | 実行用PowerShellスクリプト、ワークスペース設定など |
+
+`Workspace Tools`では`.vscode/settings.json`により`src`、`tools`、`workspace-backups`を非表示にし、二重表示や不要なファイルを減らしています。ワークスペース全体の設定では、`.bin`、`.elf`、`.o`などのビルド生成物を非表示にし、通常検索から生成物や`ch32fun`を除外します。**非表示は削除ではありません。**
 
 ## 4. ビルド・書き込み・ログ
 
@@ -52,40 +89,45 @@ VS Codeでは `pd_pps` フォルダーがエクスプローラーに表示され
 
 | 操作 | 起動方法 | 動作 |
 |---|---|---|
-| ビルド | `Ctrl+Shift+B` → プロジェクトを選択 | 選択した実験をビルド（書き込みなし） |
-| ビルド＋書き込み | `Ctrl+Shift+P` → `Tasks: Run Task` → `PD PPS: Build and flash (select project)` | ビルド後、接続中のMCUへ書き込み |
-| 接続確認 | `Tasks: Run Task` → `PD PPS: Check WCH-LinkE` | デバッガーとMCUを確認（書き込みなし） |
-| デバッグログ | `Tasks: Run Task` → `PD PPS: Debug log (minichlink -T)` | `debugprintf`端末を開く。終了は`Ctrl+C` |
+| ビルド | `Ctrl+Shift+B` → 実験を選択 | ビルドのみ（書き込みなし） |
+| ビルド＋書き込み | `Ctrl+Shift+P` → `Tasks: Run Task` → `PD PPS: Build and flash (select project)` | ビルド後にMCUへ書き込み |
+| 接続確認 | `Tasks: Run Task` → `PD PPS: Check WCH-LinkE` | WCH-LinkE / MCU情報を表示 |
+| デバッグログ | `Tasks: Run Task` → `PD PPS: Debug log (minichlink -T)` | `debugprintf`端末を開く（終了は`Ctrl+C`） |
 
-**書き込みは接続中のMCUのファームウェアを上書きします。** デバッグログと書き込みがWCH-LinkEを取り合う場合は、先にログを終了してください。ログはCOMポートのシリアルモニターではなく、`minichlink -T` を利用します。
+既存のワークスペースは`pd_pps`と`Workspace Tools`のマルチルート構成です。タスクからのソース参照には`${workspaceFolder:pd_pps}`を使用します。プロジェクト選択は番号付き実験のMakefileを検出して更新します。
+
+**注意：** Flashは接続中のMCUのファームウェアを上書きします。`minichlink -T`を開いている場合は、書き込みの前に終了してください。ログは通常のCOMポートシリアルモニターではありません。
 
 ### PowerShellから直接実行
 
-ワークスペース直下で実行します。
+```powershell
+cd C:\pj\pd_pps
 
-    cd C:\pj\pd_pps
+# ビルドのみ
+.\pd-pps.ps1 -Action Build -Project 11_pps_ina226_monitor
 
-    # ビルドのみ
-    .\pd-pps.ps1 -Action Build -Project 11_pps_ina226_monitor
+# ビルドして書き込み
+.\pd-pps.ps1 -Action Flash -Project 11_pps_ina226_monitor
 
-    # ビルド後に書き込み
-    .\pd-pps.ps1 -Action Flash -Project 11_pps_ina226_monitor
+# WCH-LinkE / MCUの確認
+.\pd-pps.ps1 -Action Probe
 
-    # WCH-LinkE / MCUの確認
-    .\pd-pps.ps1 -Action Probe
+# debugprintfログ表示（Ctrl+Cで終了）
+.\pd-pps.ps1 -Action Log
+```
 
-    # debugprintfログ表示（Ctrl+Cで終了）
-    .\pd-pps.ps1 -Action Log
+PowerShellの実行ポリシーにより直接実行できない場合：
 
-PowerShellでスクリプト実行が制限されている場合は、次の形式で実行できます。
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File .\pd-pps.ps1 -Action Build -Project 11_pps_ina226_monitor
+```
 
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\pd-pps.ps1 -Action Build -Project 11_pps_ina226_monitor
-
-ビルド・書き込み時の `-Project` には、`src/pd_pps` からの相対パスを指定します。例えば、入れ子の実験は `07_pps_manual_voltage_echo/07_pps_manual_voltage` と指定します。
+`-Project`には`src/pd_pps`からの相対パスを指定します。入れ子の例は`07_pps_manual_voltage_echo/07_pps_manual_voltage`です。
 
 ## 5. 実験プロジェクトの管理
 
-2026年11月1日の棚卸しでは、**Makefileを持つ実験プロジェクトが19個**検出されました。主な系列は以下のとおりです。
+2026年11月1日の棚卸しでは、**Makefileを持つ実験プロジェクトが19個**検出されました。
 
 | 系列 | 内容 |
 |---|---|
@@ -95,57 +137,164 @@ PowerShellでスクリプト実行が制限されている場合は、次の形�
 | `09`～`10` | ADCによる電圧測定・校正 |
 | `11_pps_ina226_monitor` | INA226（R010）によるバス電圧・電流監視 |
 
-実験フォルダーは履歴として維持します。過去のフォルダーを上書きせず、新しい試みには `12_内容`、`13_内容` のような名前で新しいフォルダーを作成します。`11_pps_ina226_monitor` ではINA226のI²Cアドレス`0x40`で認識し、バス電圧の取得を確認済みです。**負荷電流の精度検証は別途必要です。**
+`11_pps_ina226_monitor`ではINA226のI²Cアドレス`0x40`での認識、ID取得、設定書き込み、約7Vのバス電圧測定を確認しています。**既知負荷を使った電流測定精度の検証は未完了**です。
 
 ### 新しい実験を追加する手順
 
-1. `src/pd_pps` 内に、新しい番号付きフォルダーを作成する。
-2. 目的に近い実験から必要なソースコード、ヘッダー、Makefileをコピーする。`TARGET`や依存ファイルを確認し、古いビルド生成物を引き継がない。
-3. 新しい実験フォルダーのREADMEに、目的・配線・実行方法・結果を記録する。
-4. `organize-pdpps-workspace.ps1` でVS Codeのプロジェクト選択リストを更新する。
-5. 新しい実験をビルドし、必要な場合のみ書き込む。
-6. 変更が妥当な段階でGitにコミットする。
+1. `src/pd_pps`に`12_内容`、`13_内容`のような番号付きフォルダーを作成する。
+2. 近い実験のソース、ヘッダー、Makefileをコピーする。`TARGET`、依存ファイル、配線を確認し、ビルド生成物は引き継がない。
+3. 実験フォルダーのREADMEに目的・配線・実行手順・測定条件と結果を記録する。
+4. 実行用の`organize-pdpps-workspace.ps1`でVS Codeの選択肢を更新する。
+5. ビルド確認後、必要な場合のみ書き込む。
+6. ワークスペース設定が変わった場合は`capture-workspace.ps1`でGit管理用コピーを更新する。
+7. 変更内容を確認してGitにコミットする。
 
 ### プロジェクト選択リストの更新
 
-まず変更なしの調査を実施します。
+```powershell
+cd C:\pj\pd_pps
 
-    cd C:\pj\pd_pps
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\organize-pdpps-workspace.ps1 -Mode Inspect
+# 調査のみ（ファイル変更なし）
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File .\organize-pdpps-workspace.ps1 -Mode Inspect
 
-検出内容を確認後、更新します。
+# 実験の選択肢を更新（変更前に設定をバックアップ）
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File .\organize-pdpps-workspace.ps1 -Mode Apply
+```
 
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\organize-pdpps-workspace.ps1 -Mode Apply
+`Apply`は`pd_pps.code-workspace`を更新します。**ソースコード・Makefileの移動やMCUへの書き込みは行いません。** 完了後はVS Codeでワークスペースを開き直してください。
 
-`Apply` は既存のワークスペース設定を `workspace-backups` にバックアップし、Makefileを持つ実験の選択肢を更新します。ソースコード・Makefileの変更やMCUへの書き込みは行いません。完了後はVS Codeでワークスペースを開き直してください。
+## 6. ワークスペース設定・スクリプトのGit管理
 
-## 6. Git運用
+### 実行用ファイルをGit管理用コピーへ反映
 
-Gitリポジトリは `C:\pj\pd_pps\src\pd_pps` です。
+実行用のPowerShellスクリプト、`.code-workspace`、`.vscode/settings.json`を変更した後に実行します。
 
-    cd C:\pj\pd_pps\src\pd_pps
-    git status
-    git add 12_new_experiment
-    git diff --cached --stat
-    git commit -m "Add new PPS experiment"
+```powershell
+cd C:\pj\pd_pps\src\pd_pps
 
-`12_new_experiment` は例示名です。実際の実験名に置き換えてください。コミット前に生成物が含まれていないか確認します。GitHubへの反映には別途 `git push` が必要です。
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File .\dev-workspace\capture-workspace.ps1
 
-## 7. よくある確認事項
+git status --short
+git diff -- dev-workspace
+```
+
+`capture-workspace.ps1`は**ワークスペース全体のルートから`dev-workspace/`への一方向コピー**です。ソースコードやMakefileには触れず、元の実行用ファイルも変更しません。`env.ps1`は通常コピーしません（環境固有の情報や秘密情報が含まれていないかを確認する必要があります）。
+
+### 変更をコミットし、GitHubへ反映
+
+```powershell
+cd C:\pj\pd_pps\src\pd_pps
+
+git add dev-workspace
+git diff --cached --check
+git diff --cached --stat
+git diff --cached             # 内容・機密情報を確認
+
+git commit -m "Update development workspace settings"
+git push
+```
+
+`.gitignore`には`.vscode/`の除外規則があります。**初回だけ**`dev-workspace/.vscode/settings.json`を追加するには`git add -f dev-workspace/.vscode/settings.json`が必要です。一度追跡された後の更新は通常の`git add dev-workspace`で取り込めます。
+
+> `capture-workspace.ps1`によるコピーだけではコミットされません。また、`git commit`だけではGitHubに反映されず、`git push`が必要です。
+
+## 7. 新しいPCでの開発環境の再構築
+
+Gitリポジトリを`C:\pj\pd_pps\src\pd_pps`に配置し、`dev-workspace/`のファイルを実行用の場所に戻す方式です。**既存環境を再構築する場合は上書き前にバックアップしてください。**
+
+### ① Gitリポジトリとサブモジュールを取得
+
+```powershell
+New-Item -ItemType Directory -Force C:\pj\pd_pps\src | Out-Null
+cd C:\pj\pd_pps\src
+
+git clone --recurse-submodules https://github.com/amapyon/pd_pps.git
+```
+
+既にclone済みで`ch32fun`が空の場合は、リポジトリ内で次を実行します。
+
+```powershell
+git submodule update --init --recursive
+```
+
+### ② Git管理用コピーを実行用の場所に配置
+
+```powershell
+$root = 'C:\pj\pd_pps'
+$repo = Join-Path $root 'src\pd_pps'
+
+$files = @(
+    'pd_pps.code-workspace',
+    'pd-pps.ps1',
+    'organize-pdpps-workspace.ps1',
+    'setup-workspace-view.ps1',
+    'install-pd-pps-tools.ps1',
+    'install-zadig.ps1'
+)
+
+foreach ($file in $files) {
+    Copy-Item (Join-Path $repo "dev-workspace\$file") `
+      (Join-Path $root $file)
+}
+
+New-Item -ItemType Directory -Force (Join-Path $root '.vscode') |
+    Out-Null
+Copy-Item (Join-Path $repo 'dev-workspace\.vscode\settings.json') `
+  (Join-Path $root '.vscode\settings.json')
+```
+
+### ③ 開発ツールと接続を確認
+
+`tools/`内のコンパイラ・MakeなどはGitに含まれません。使用するスクリプトの内容を確認して必要なツールを導入し、WCH-LinkE接続を確認します。ローカル環境で必要な`env.ps1`は別途準備してください。
+
+```powershell
+cd C:\pj\pd_pps
+.\pd-pps.ps1 -Action Probe
+.\pd-pps.ps1 -Action Build -Project 11_pps_ina226_monitor
+code .\pd_pps.code-workspace
+```
+
+上記は再構築の基本手順です。開発ツールのインストール、ドライバー、環境依存設定は別途確認が必要です。
+
+## 8. Git運用（実験コードとREADME）
+
+```powershell
+cd C:\pj\pd_pps\src\pd_pps
+
+git status --short
+# 例：新しい実験フォルダーを追加
+git add 12_new_experiment
+git diff --cached --check
+git diff --cached --stat
+git commit -m "Add new PPS experiment"
+git push
+```
+
+`12_new_experiment`は例示名です。実験に応じて変更してください。生成物や機密情報がステージングされていないか確認してからコミットします。
+
+## 9. よくある確認事項
 
 | 状況 | 確認箇所 |
 |---|---|
-| 新規実験が選択肢に出ない | フォルダー名が`NN_`形式か、Makefileがあるか、整理スクリプトを`Apply`したか |
-| ビルドできない | `pd-pps.ps1`のツールパス、Makefile、`TARGET`、エラーログ |
-| 書き込めない | WCH-LinkE接続、`Probe`の結果、ログ端末が稼働中でないか |
-| ログが表示されない | 対象ファームウェアが`debugprintf`を使用しているか |
-| INA226が認識されない | VCC/GND、PA2=SCL、PA3=SDA、I²Cアドレス`0x40`、GPIO解放処理 |
-| INA226のバス電圧が0V | VBS端子が測定対象の電圧ラインへ接続されているか |
+| 新規実験が選択肢に出ない | `NN_`形式のフォルダー名、Makefile、整理スクリプトの`Apply` |
+| ビルドできない | `pd-pps.ps1`のツールパス、Makefile、`TARGET`、`ch32fun`サブモジュール |
+| 書き込めない | WCH-LinkE接続、`Probe`、実行中のログ端末 |
+| ログが表示されない | ファームウェアが`debugprintf`を使用しているか |
+| INA226が認識されない | VCC/GND、PA2=SCL、PA3=SDA、アドレス`0x40`、GPIO解放方式 |
+| INA226のバス電圧が0V | VBSが測定対象ラインに接続されているか |
+| READMEやスクリプトの変更がGitに出ない | 編集場所がリポジトリ外ではないか、`capture-workspace.ps1`を実行したか |
+| `dev-workspace/.vscode/settings.json`が追加できない | `.gitignore`の`.vscode/`規則。初回のみ`git add -f`を使用 |
+| 設定を戻したい | `workspace-backups/`を確認し、必要ならGitの`dev-workspace/`と比較する |
 
-## 8. このワークスペースの運用原則
+## 10. 運用原則
 
-- **実験を消さない：** 動作確認済みの実験は原則保存し、新しい実験は別フォルダーで進める。
-- **ビルドと書き込みを分ける：** まずビルドのみで確認し、書き込みは意図したときだけ行う。
-- **変更前に戻れる状態を確保：** ソースはGit、ワークスペース設定はバックアップを利用する。
-- **測定値と条件を記録する：** 使用した電源・接続・設定値・測定結果を各実験のREADMEに残す。
-- **整理は設定中心に：** 当面は既存フォルダーの移動やコードの大規模な統合を行わない。
+- **実験を消さない：** 動作確認済みフォルダーを維持し、新しい実験は別フォルダーで進める。
+- **ビルドと書き込みを分ける：** 通常はビルドで確認し、書き込みは意図したときだけ実施する。
+- **変更前に戻れる状態を確保する：** 実験コードはGit、VS Code設定はバックアップとGit管理用コピーを利用する。
+- **測定条件を記録する：** 電源・配線・負荷・PPS設定値・測定結果を各実験のREADMEに残す。
+- **実行用ファイルを正本とする：** 開発環境の設定変更後は`capture-workspace.ps1`で保存用コピーを更新する。
+- **Git管理用コピーを確認してコミットする：** 設定内容と機密情報を点検し、必要に応じて`git push`する。
+- **整理は設定中心にする：** 当面は既存実験の移動やコードの大規模な統合を行わない。
