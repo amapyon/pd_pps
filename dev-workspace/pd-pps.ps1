@@ -14,7 +14,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$root = $PSScriptRoot
+$root = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
 $repoRoot = Join-Path $root 'src\pd_pps'
 $gccBin = Join-Path $root 'tools\xpack-riscv-none-elf-gcc-14.2.0-3\bin'
 $makeBin = Join-Path $root 'tools\xpack-windows-build-tools-4.4.1-3\bin'

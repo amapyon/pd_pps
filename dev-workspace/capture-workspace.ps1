@@ -25,7 +25,6 @@ $workspaceRoot = (
 # Git管理する開発環境ファイル
 $files = @(
     'pd_pps.code-workspace'
-    'pd-pps.ps1'
     'organize-pdpps-workspace.ps1'
     'setup-workspace-view.ps1'
     'install-pd-pps-tools.ps1'
