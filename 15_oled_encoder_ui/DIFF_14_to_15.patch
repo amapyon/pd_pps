@@ -1,0 +1,217 @@
+--- a/14_encoder_ec11/pps_encoder_ec11.c
++++ b/15_oled_encoder_ui/pps_oled_encoder_ui.c
+@@ -1,5 +1,5 @@
+ /*
+- * M3: 14_encoder_ec11 - CH32X035F8U6 (QFN20)
++ * M4: 15_oled_encoder_ui - CH32X035F8U6 (QFN20)
+  *
+  * USB PD/PPS manual voltage + requested current with auto reconnect.
+  * Debug terminal: WCH-LinkE (PC18/DIO IC pin14, PC19/DCK IC pin16)
+@@ -27,6 +27,8 @@
+ #include "m2_dashboard.h"
+ #include "m3_input.h"
+ #include "m3_gpio.h"
++#include "m4_ui.h"
++#include "m4_screen.h"
+ 
+ #define USBPD_IMPLEMENTATION
+ #include "usbpd_current.h"
+@@ -53,6 +55,11 @@
+ #define M2_OLED_POWER_SETTLE_MS     150u
+ #define M2_INA_SAMPLE_PERIOD_MS     800u
+ 
++/* M4 stage 1: physical UI navigation/edit PREVIEW, but NO live PPS change.
++ * Only set to 1 after menu tests + APDO/PD tests are confirmed on hardware.
++ * Button presses are never directly mapped to a PD request. */
++#define M4_PPS_APPLY_ENABLE         0u
++
+ static volatile uint32_t s_ms;
+ static char s_line[INPUT_LINE_SIZE];
+ static unsigned s_line_length;
+@@ -92,6 +99,15 @@
+ /* M3: GPIO sampling only; it must NEVER change the PD request. */
+ static m3_input_t s_m3_input;
+ static uint32_t s_m3_last_poll_ms;
++static m4_ui_t s_m4_ui;
++static m4_action_t s_m4_pending;
++static uint32_t s_m4_last_caps_ms;
++static bool s_m4_caps_sampled;
++#if M2_OLED_ENABLE
++static bool s_m4_screen_rendered;
++static uint32_t s_m4_last_render_ms;
++static uint32_t s_m4_last_render_revision;
++#endif
+ 
+ static void m3_service(void)
+ {
+@@ -111,6 +127,10 @@
+         printf("M3: EC11 PUSH count=%lu\n", (unsigned long)s_m3_input.press_count);
+     if (ev.back_press)
+         printf("M3: BACK PUSH count=%lu\n", (unsigned long)s_m3_input.back_count);
++    if (ev.rotation || ev.encoder_press || ev.back_press) {
++        const m4_action_t action = m4_ui_input(&s_m4_ui, ev);
++        if (action.apply) s_m4_pending = action;
++    }
+ }
+ 
+ /* Same receive-only handler as the previously working original firmware. */
+@@ -213,7 +233,25 @@
+                                   valid);
+     }
+     if (active_negotiation) return;
+-    m2_dashboard_service(&s_m2_display, now);
++    /* M4 owns framebuffer rendering; M2 still owns INA data + SSD1306 I2C.
++     * Never modify framebuffer during an in-progress split OLED transfer. */
++    if (s_m2_display.oled.busy) {
++        if (m2_ssd1306_flush_step(&s_m2_display.oled) == M2_FLUSH_ERROR)
++            s_m2_display.display_fault = true;
++    } else if (!s_m2_display.display_fault &&
++               (!s_m4_screen_rendered ||
++                s_m4_last_render_revision != s_m4_ui.revision ||
++                (uint32_t)(now - s_m4_last_render_ms) >=
++                  (s_m4_ui.page == M4_PAGE_MONITOR ? 1000u : 500u))) {
++        m4_screen_draw(&s_m2_display.oled, &s_m4_ui,
++                       &s_m2_display.values, M4_PPS_APPLY_ENABLE != 0u);
++        if (!m2_ssd1306_begin_flush(&s_m2_display.oled) ||
++            m2_ssd1306_flush_step(&s_m2_display.oled) == M2_FLUSH_ERROR)
++            s_m2_display.display_fault = true;
++        s_m4_screen_rendered = true;
++        s_m4_last_render_ms = now;
++        s_m4_last_render_revision = s_m4_ui.revision;
++    }
+     if (s_m2_display.display_fault && !s_m2_fault_reported) {
+         s_m2_fault_reported = true;
+         printf("M2: OLED transfer error; display stopped (PD/INA226 continue)\n");
+@@ -413,7 +451,7 @@
+     printf("  retry (r)  : restart PD negotiation\n");
+     printf("  help (?)   : show this text\n");
+     printf("  M3 GPIO: PA4=A, PA5=B, PA6=EC11 push, PA7=BACK (all to GND)\n");
+-    printf("  M3 keys are INPUT DIAGNOSTICS only; no PPS control by keys.\n");
++    printf("  M4 keys: PUSH=menu/select, BACK=cancel, ROTATE=move/edit.\n");
+     printf("  PPS step: voltage 20mV, requested current 50mA.\n");
+     printf("  Requests must fit the CURRENT charger's reported PPS APDO.\n");
+     printf("  Encoding: 3300..21000mV, 50..6350mA; APDO may be narrower.\n");
+@@ -732,6 +770,100 @@
+     }
+ }
+ 
++/* M4: a read-only snapshot of Source_Capabilities for the PDO list UI. */
++static void m4_sync_source(const Session *session)
++{
++    const bool pd_ready = session->mode == MODE_READY &&
++                          USBPD_GetState() == eSTATE_PS_RDY;
++    m4_ui_set_pd(&s_m4_ui, session->desired_mv, session->desired_ma, pd_ready);
++    if (session->mode != MODE_READY && session->mode != MODE_UNSUPPORTED) {
++        m4_ui_set_pdos(&s_m4_ui, NULL, 0u);
++        s_m4_caps_sampled = false;
++        return;
++    }
++    /* Source list is static between PD events; don't scan on every 2ms tick. */
++    if (s_m4_caps_sampled &&
++        (uint32_t)(s_ms - s_m4_last_caps_ms) < 250u) return;
++    s_m4_last_caps_ms = s_ms;
++    s_m4_caps_sampled = true;
++    USBPD_SPR_CapabilitiesMessage_t *caps = NULL;
++    const size_t count = USBPD_GetCapabilities(&caps);
++    m4_pdo_t copy[M4_MAX_PDOS];
++    uint8_t stored = 0u;
++    if (caps) {
++        for (size_t i = 0u; i < count && stored < M4_MAX_PDOS; ++i) {
++            const USBPD_SourcePDO_t *pdo = &caps->Source[i];
++            m4_pdo_t item = {0};
++            item.source_index = (uint8_t)i;
++            if (USBPD_IsPPS(pdo)) {
++                item.kind = M4_PDO_PPS;
++                item.min_mv = pdo->SPR_PPS.MinVoltageIn100mV * 100u;
++                item.max_mv = pdo->SPR_PPS.MaxVoltageIn100mV * 100u;
++                item.max_ma = pdo->SPR_PPS.MaxCurrentIn50mA * 50u;
++            } else if (pdo->Header.PDOType == eUSBPD_PDO_FIXED) {
++                item.kind = M4_PDO_FIXED;
++                item.min_mv = pdo->FixedSupply.VoltageIn50mV * 50u;
++                item.max_mv = item.min_mv;
++                item.max_ma = pdo->FixedSupply.MaxCurrentIn10mA * 10u;
++            } else {
++                item.kind = M4_PDO_OTHER;
++            }
++            copy[stored++] = item;
++        }
++    }
++    m4_ui_set_pdos(&s_m4_ui, copy, stored);
++}
++
++static void m4_process_pending(Session *session)
++{
++    const m4_action_t action = s_m4_pending;
++    s_m4_pending.apply = false;
++    if (!action.apply) return;
++#if M4_PPS_APPLY_ENABLE
++    /* Additional checks on the actual PD state and current advertised APDO.
++     * Never send a request to an unconnected charger. */
++    if (session->mode != MODE_READY || USBPD_GetState() != eSTATE_PS_RDY ||
++        session->desired_mv != action.original_mv ||
++        session->desired_ma != action.original_ma) {
++        m4_ui_result(&s_m4_ui, "PD/TARGET CHANGED");
++        printf("M4: apply rejected (PD/target changed)\n");
++        return;
++    }
++    const int index = choose_pps_pdo(action.mv, action.ma, false);
++    if (index < 0) {
++        m4_ui_result(&s_m4_ui, "APDO REJECTED");
++        printf("M4: apply rejected (not in an APDO)\n");
++        return;
++    }
++    if (session->desired_mv == action.mv && session->desired_ma == action.ma) {
++        m4_ui_result(&s_m4_ui, "PPS UNCHANGED");
++        return;
++    }
++    if (action.ma < 200u)
++        printf("WARN: requested current <200mA may reset board supply\n");
++    funDigitalWrite(LED_PIN, LED_OFF);
++    session->desired_mv = action.mv;
++    session->desired_ma = action.ma;
++    if (!send_and_wait_pps((uint8_t)index, action.mv, action.ma, "UI set")) {
++        m4_ui_result(&s_m4_ui, "PD REQUEST FAILED");
++        schedule_retry(session, "UI PPS change failed");
++    } else {
++        session->pdo_index = (uint8_t)index;
++        session->mode = MODE_READY;
++        session->last_pps_ms = s_ms;
++        funDigitalWrite(LED_PIN, LED_ON);
++        m4_ui_result(&s_m4_ui, "PPS APPLIED");
++        printf("M4: PPS set %lumV/%lumA confirmed PS_RDY\n",
++               (unsigned long)action.mv, (unsigned long)action.ma);
++    }
++#else
++    (void)session;
++    printf("M4: UI preview %lumV/%lumA; no PPS request sent (APPLY disabled)\n",
++           (unsigned long)action.mv, (unsigned long)action.ma);
++    m4_ui_result(&s_m4_ui, "DEMO - NO PPS CHANGE");
++#endif
++}
++
+ int main(void)
+ {
+     SystemInit();
+@@ -741,9 +873,11 @@
+     ina226_bus_init();
+     m3_gpio_init();
+     m3_input_init(&s_m3_input, m3_gpio_read(), s_ms);
++    m4_ui_init(&s_m4_ui, INITIAL_VOLTAGE_MV, INITIAL_CURRENT_MA);
+     s_m3_last_poll_ms = s_ms;
+     WaitForDebuggerToAttach(0);
+-    printf("BOOT: CH32X035 PPS + INA226 + SSD1306 + EC11/BACK (M3)\n");
++    printf("BOOT: CH32X035 PPS + INA226 + SSD1306 + EC11/BACK (M4 UI)\n");
++    printf("M4: UI preview mode; live PPS apply is disabled\n");
+     printf("PPS RDO: 20mV voltage, 50mA requested current steps\n");
+ 
+     Session session = {0};
+@@ -760,7 +894,9 @@
+         poll_input();
+         process_command(&session);
+         tick_session(&session);
++        m4_sync_source(&session);
+         m3_service();
++        m4_process_pending(&session);
+ #if M2_OLED_ENABLE
+         m2_service(&session);
+ #endif

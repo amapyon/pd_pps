@@ -1,0 +1,115 @@
+--- 13_oled_ssd1306/pps_oled_ssd1306.c
++++ 14_encoder_ec11/pps_encoder_ec11.c
+@@ -1,5 +1,5 @@
+ /*
+- * 08_pps_manual_voltage_current_reconnect_v2 - CH32X035F8U6 (QFN20)
++ * M3: 14_encoder_ec11 - CH32X035F8U6 (QFN20)
+  *
+  * USB PD/PPS manual voltage + requested current with auto reconnect.
+  * Debug terminal: WCH-LinkE (PC18/DIO IC pin14, PC19/DCK IC pin16)
+@@ -25,6 +25,8 @@
+ #include "ina226.h"
+ #include "m2_bus_adapter.h"
+ #include "m2_dashboard.h"
++#include "m3_input.h"
++#include "m3_gpio.h"
+ 
+ #define USBPD_IMPLEMENTATION
+ #include "usbpd_current.h"
+@@ -45,7 +47,7 @@
+ #define CC_DETACH_DEBOUNCE_MS       150u
+ #define INPUT_LINE_SIZE              32u
+ 
+-/* M2 only: Set 0 to compile without OLED activity for A/B diagnosis.
++/* M2 OLED retained: Set 0 to compile without OLED activity for A/B diagnosis.
+  * This does NOT disable INA226, PD control, or serial meter commands. */
+ #define M2_OLED_ENABLE               1u
+ #define M2_OLED_POWER_SETTLE_MS     150u
+@@ -86,6 +88,30 @@
+ 
+ static m2_i2c_ops_t s_m2_bus = {m2_start, m2_send, m2_end, NULL};
+ #endif
++
++/* M3: GPIO sampling only; it must NEVER change the PD request. */
++static m3_input_t s_m3_input;
++static uint32_t s_m3_last_poll_ms;
++
++static void m3_service(void)
++{
++    const uint32_t now = s_ms;
++    /* Poll at most once per 2 ms. No interrupt handler and no delays here. */
++    if ((uint32_t)(now - s_m3_last_poll_ms) < M3_POLL_PERIOD_MS) return;
++    s_m3_last_poll_ms = now;
++    const m3_levels_t pins = m3_gpio_read();
++    const m3_events_t ev = m3_input_sample(&s_m3_input, pins, now);
++    if (ev.rotation > 0)
++        printf("M3: EC11 CW   pos=%ld total=%lu\n",
++               (long)s_m3_input.position, (unsigned long)s_m3_input.cw_count);
++    else if (ev.rotation < 0)
++        printf("M3: EC11 CCW  pos=%ld total=%lu\n",
++               (long)s_m3_input.position, (unsigned long)s_m3_input.ccw_count);
++    if (ev.encoder_press)
++        printf("M3: EC11 PUSH count=%lu\n", (unsigned long)s_m3_input.press_count);
++    if (ev.back_press)
++        printf("M3: BACK PUSH count=%lu\n", (unsigned long)s_m3_input.back_count);
++}
+ 
+ /* Same receive-only handler as the previously working original firmware. */
+ void handle_debug_input(int length, uint8_t *bytes)
+@@ -386,6 +412,8 @@
+     printf("  caps (c)   : last Source PDOs (v3 diagnostics)\n");
+     printf("  retry (r)  : restart PD negotiation\n");
+     printf("  help (?)   : show this text\n");
++    printf("  M3 GPIO: PA4=A, PA5=B, PA6=EC11 push, PA7=BACK (all to GND)\n");
++    printf("  M3 keys are INPUT DIAGNOSTICS only; no PPS control by keys.\n");
+     printf("  PPS step: voltage 20mV, requested current 50mA.\n");
+     printf("  Requests must fit the CURRENT charger's reported PPS APDO.\n");
+     printf("  Encoding: 3300..21000mV, 50..6350mA; APDO may be narrower.\n");
+@@ -711,8 +739,11 @@
+     systick_init_ms();
+     adc_voltage_init_pa0();
+     ina226_bus_init();
++    m3_gpio_init();
++    m3_input_init(&s_m3_input, m3_gpio_read(), s_ms);
++    s_m3_last_poll_ms = s_ms;
+     WaitForDebuggerToAttach(0);
+-    printf("BOOT: CH32X035 PPS + calibrated ADC + INA226 + SSD1306 (PA2/PA3)\n");
++    printf("BOOT: CH32X035 PPS + INA226 + SSD1306 + EC11/BACK (M3)\n");
+     printf("PPS RDO: 20mV voltage, 50mA requested current steps\n");
+ 
+     Session session = {0};
+@@ -729,11 +760,12 @@
+         poll_input();
+         process_command(&session);
+         tick_session(&session);
++        m3_service();
+ #if M2_OLED_ENABLE
+         m2_service(&session);
+ #endif
+         /* Keep CC detection/initial PD negotiation responsive. */
+-        Delay_Ms(session.mode == MODE_NEGOTIATING ? 1u : 10u);
++        Delay_Ms(session.mode == MODE_NEGOTIATING ? 1u : 2u);
+     }
+ }
+ 
+
+--- 13_oled_ssd1306/Makefile
++++ 14_encoder_ec11/Makefile
+@@ -1,7 +1,7 @@
+ # v3-derived: manual PPS voltage AND current, with reconnect support.
+ all: build
+-TARGET := pps_oled_ssd1306
+-ADDITIONAL_C_FILES := adc_voltage.c adc_calibration.c ina226.c m2_bus_adapter.c m2_ssd1306.c m2_dashboard.c
++TARGET := pps_encoder_ec11
++ADDITIONAL_C_FILES := adc_voltage.c adc_calibration.c ina226.c m2_bus_adapter.c m2_ssd1306.c m2_dashboard.c m3_input.c m3_gpio.c
+ TARGET_MCU := CH32X035
+ TARGET_MCU_PACKAGE := CH32X035F8U6
+ CH32FUN := ../ch32fun/ch32fun
+@@ -43,3 +43,7 @@
+ 	cc -std=c11 -Wall -Wextra -Werror -pedantic -O2 -I. -o /tmp/test_m2_oled_bus tests/test_oled_bus.c m2_bus_adapter.c
+ 	/tmp/test_m2_oled_bus
+ 	$(RM) /tmp/test_m2_oled_bus
++
++	cc -std=c11 -Wall -Wextra -Werror -pedantic -O2 -I. -o /tmp/test_m3_input tests/test_m3_input.c m3_input.c
++	/tmp/test_m3_input
++	$(RM) /tmp/test_m3_input
