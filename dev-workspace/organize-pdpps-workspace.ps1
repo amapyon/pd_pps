@@ -77,7 +77,7 @@ function Add-ExcludePatterns {
 
 $Root = [System.IO.Path]::GetFullPath($Root)
 $repo = Join-Path $Root 'src\pd_pps'
-$helper = Join-Path $Root 'pd-pps.ps1'
+$helper = Join-Path $repo 'dev-workspace\pd-pps.ps1'
 
 if ([string]::IsNullOrWhiteSpace($WorkspaceFile)) {
     $WorkspaceFile = Join-Path $Root 'pd_pps.code-workspace'
@@ -107,7 +107,7 @@ $repoPrefix = $repo.TrimEnd('\', '/') + '\'
 $projects = @(
     foreach ($dir in (
         Get-ChildItem -LiteralPath $repo -Directory |
-        Where-Object { $_.Name -match '^[0-9]{2}_' }
+        Where-Object { $_.Name -match '^[0-9]{2}[A-Za-z]?_' }
     )) {
         Get-ChildItem `
             -LiteralPath $dir.FullName `
