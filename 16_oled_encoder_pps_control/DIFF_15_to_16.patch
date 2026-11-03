@@ -1,0 +1,308 @@
+--- a/15_oled_encoder_ui/pps_oled_encoder_ui.c
++++ b/16_oled_encoder_pps_control/pps_oled_encoder_pps_control.c
+@@ -1,5 +1,5 @@
+ /*
+- * M4: 15_oled_encoder_ui - CH32X035F8U6 (QFN20)
++ * M4-B: 16_oled_encoder_pps_control - CH32X035F8U6 (QFN20)
+  *
+  * USB PD/PPS manual voltage + requested current with auto reconnect.
+  * Debug terminal: WCH-LinkE (PC18/DIO IC pin14, PC19/DCK IC pin16)
+@@ -9,7 +9,8 @@
+  * Use Ubuntu-side local echo. Do NOT add printf to handle_debug_input().
+  * Based on user-tested v3. Preserve v3 PD transport and reconnect logic.
+  * Requested current is an RDO limit, not a forced physical load current.
+- * User reports v2 hardware-verified. ADC integration is not yet hardware-tested.
++ * M4-A has been hardware-tested on this board. M4-B live PPS apply is NEW.
++ * Do not claim output voltage verified from a PS_RDY response alone.
+  */
+ #include "ch32fun.h"
+ #include <stdbool.h>
+@@ -29,6 +30,7 @@
+ #include "m3_gpio.h"
+ #include "m4_ui.h"
+ #include "m4_screen.h"
++#include "m4_apply_guard.h"
+ 
+ #define USBPD_IMPLEMENTATION
+ #include "usbpd_current.h"
+@@ -55,10 +57,10 @@
+ #define M2_OLED_POWER_SETTLE_MS     150u
+ #define M2_INA_SAMPLE_PERIOD_MS     800u
+ 
+-/* M4 stage 1: physical UI navigation/edit PREVIEW, but NO live PPS change.
+- * Only set to 1 after menu tests + APDO/PD tests are confirmed on hardware.
+- * Button presses are never directly mapped to a PD request. */
+-#define M4_PPS_APPLY_ENABLE         0u
++/* M4 stage B: live UI change enabled. The explicit CONFIRM page is required.
++ * Guard live PD state, unchanged original setting, same APDO and valid V/I.
++ * External load must remain disconnected for the first hardware trials. */
++#define M4_PPS_APPLY_ENABLE         1u
+ 
+ static volatile uint32_t s_ms;
+ static char s_line[INPUT_LINE_SIZE];
+@@ -817,49 +819,85 @@
+ static void m4_process_pending(Session *session)
+ {
+     const m4_action_t action = s_m4_pending;
++    /* One-shot: a held button / subsequent redraw cannot resend. */
+     s_m4_pending.apply = false;
+     if (!action.apply) return;
+ #if M4_PPS_APPLY_ENABLE
+-    /* Additional checks on the actual PD state and current advertised APDO.
+-     * Never send a request to an unconnected charger. */
+-    if (session->mode != MODE_READY || USBPD_GetState() != eSTATE_PS_RDY ||
+-        session->desired_mv != action.original_mv ||
+-        session->desired_ma != action.original_ma) {
+-        m4_ui_result(&s_m4_ui, "PD/TARGET CHANGED");
+-        printf("M4: apply rejected (PD/target changed)\n");
+-        return;
+-    }
+-    const int index = choose_pps_pdo(action.mv, action.ma, false);
+-    if (index < 0) {
+-        m4_ui_result(&s_m4_ui, "APDO REJECTED");
+-        printf("M4: apply rejected (not in an APDO)\n");
+-        return;
+-    }
+-    if (session->desired_mv == action.mv && session->desired_ma == action.ma) {
++    const bool ready = (session->mode == MODE_READY) &&
++                       (USBPD_GetState() == eSTATE_PS_RDY) &&
++                       USBPD_ActiveCCPresent();
++    const bool target_unchanged = session->desired_mv == action.original_mv &&
++                                  session->desired_ma == action.original_ma;
++
++    /* Look up the exact ORIGINAL source PDO index and recheck its content.
++     * Never choose a different APDO silently when the charger changes its
++     * Source Capabilities in the middle of a UI edit. */
++    USBPD_SPR_CapabilitiesMessage_t *caps = NULL;
++    const size_t count = USBPD_GetCapabilities(&caps);
++    bool same_apdo = false;
++    bool power_limited = false;
++    PPSApdoLimits limits = {0};
++    if (caps && (size_t)action.source_index < count) {
++        const USBPD_SourcePDO_t *const pdo = &caps->Source[action.source_index];
++        if (USBPD_IsPPS(pdo)) {
++            limits.min_mv = pdo->SPR_PPS.MinVoltageIn100mV * 100u;
++            limits.max_mv = pdo->SPR_PPS.MaxVoltageIn100mV * 100u;
++            limits.max_ma = pdo->SPR_PPS.MaxCurrentIn50mA * 50u;
++            power_limited = pdo->SPR_PPS.PPSpowerLimited;
++            same_apdo = limits.min_mv == action.apdo_min_mv &&
++                        limits.max_mv == action.apdo_max_mv &&
++                        limits.max_ma == action.apdo_max_ma;
++        }
++    }
++    const m4_apply_check_t check = {
++        .pd_ready = ready,
++        .original_target_unchanged = target_unchanged,
++        .source_apdo_unchanged = same_apdo,
++        .source_power_limited = power_limited,
++        .apdo = limits,
++        .mv = action.mv,
++        .ma = action.ma,
++    };
++    const m4_apply_verdict_t verdict = m4_apply_validate(&check);
++    if (verdict != M4_APPLY_OK) {
++        m4_ui_result(&s_m4_ui, m4_apply_message(verdict));
++        printf("M4B: rejected (%s), %lumV / %lumA; no request sent\n",
++               m4_apply_message(verdict), (unsigned long)action.mv,
++               (unsigned long)action.ma);
++        return;
++    }
++    if (session->desired_mv == action.mv && session->desired_ma == action.ma &&
++        session->pdo_index == action.source_index) {
+         m4_ui_result(&s_m4_ui, "PPS UNCHANGED");
+-        return;
+-    }
+-    if (action.ma < 200u)
+-        printf("WARN: requested current <200mA may reset board supply\n");
++        printf("M4B: no-op, request unchanged\n");
++        return;
++    }
++    printf("M4B: apply confirmed by PUSH: PDO[%u] %lumV / %lumA (PD request)\n",
++           (unsigned)action.source_index,
++           (unsigned long)action.mv, (unsigned long)action.ma);
+     funDigitalWrite(LED_PIN, LED_OFF);
++    if (!send_and_wait_pps(action.source_index, action.mv, action.ma, "UI set")) {
++        /* IMPORTANT: retain the LAST CONFIRMED target, not a failed draft.
++         * Hardware state may be uncertain after PD timeout; force renegotiate.
++         * Original Session reconnect behavior restores the prior target. */
++        m4_ui_result(&s_m4_ui, "PPS FAILED / RETRY");
++        schedule_retry(session, "UI PPS change failed");
++        return;
++    }
++    /* Only publish & persist a new desired target after PS_RDY confirmation.
++     * BUS voltage is checked separately with INA226 in the field trial. */
+     session->desired_mv = action.mv;
+     session->desired_ma = action.ma;
+-    if (!send_and_wait_pps((uint8_t)index, action.mv, action.ma, "UI set")) {
+-        m4_ui_result(&s_m4_ui, "PD REQUEST FAILED");
+-        schedule_retry(session, "UI PPS change failed");
+-    } else {
+-        session->pdo_index = (uint8_t)index;
+-        session->mode = MODE_READY;
+-        session->last_pps_ms = s_ms;
+-        funDigitalWrite(LED_PIN, LED_ON);
+-        m4_ui_result(&s_m4_ui, "PPS APPLIED");
+-        printf("M4: PPS set %lumV/%lumA confirmed PS_RDY\n",
+-               (unsigned long)action.mv, (unsigned long)action.ma);
+-    }
++    session->pdo_index = action.source_index;
++    session->mode = MODE_READY;
++    session->last_pps_ms = s_ms;
++    funDigitalWrite(LED_PIN, LED_ON);
++    m4_ui_result(&s_m4_ui, "PPS APPLIED");
++    printf("M4B: PPS set %lumV / %lumA, PS_RDY confirmed (BUS unverified)\n",
++           (unsigned long)action.mv, (unsigned long)action.ma);
+ #else
+     (void)session;
+-    printf("M4: UI preview %lumV/%lumA; no PPS request sent (APPLY disabled)\n",
+-           (unsigned long)action.mv, (unsigned long)action.ma);
++    printf("M4B: preview-only mode, no request sent\n");
+     m4_ui_result(&s_m4_ui, "DEMO - NO PPS CHANGE");
+ #endif
+ }
+@@ -876,8 +914,12 @@
+     m4_ui_init(&s_m4_ui, INITIAL_VOLTAGE_MV, INITIAL_CURRENT_MA);
+     s_m3_last_poll_ms = s_ms;
+     WaitForDebuggerToAttach(0);
+-    printf("BOOT: CH32X035 PPS + INA226 + SSD1306 + EC11/BACK (M4 UI)\n");
+-    printf("M4: UI preview mode; live PPS apply is disabled\n");
++    printf("BOOT: CH32X035 PPS + INA226 + SSD1306 + EC11/BACK (M4B LIVE)\n");
++#if M4_PPS_APPLY_ENABLE
++    printf("M4B: UI live apply enabled; no load during first field tests\n");
++#else
++    printf("M4B: UI preview only; live apply disabled\n");
++#endif
+     printf("PPS RDO: 20mV voltage, 50mA requested current steps\n");
+ 
+     Session session = {0};
+--- a/15_oled_encoder_ui/Makefile
++++ b/16_oled_encoder_pps_control/Makefile
+@@ -1,7 +1,7 @@
+ # v3-derived: manual PPS voltage AND current, with reconnect support.
+ all: build
+-TARGET := pps_oled_encoder_ui
+-ADDITIONAL_C_FILES := adc_voltage.c adc_calibration.c ina226.c m2_bus_adapter.c m2_ssd1306.c m2_dashboard.c m3_input.c m3_gpio.c m4_ui.c m4_screen.c
++TARGET := pps_oled_encoder_pps_control
++ADDITIONAL_C_FILES := adc_voltage.c adc_calibration.c ina226.c m2_bus_adapter.c m2_ssd1306.c m2_dashboard.c m3_input.c m3_gpio.c m4_ui.c m4_screen.c m4_apply_guard.c
+ TARGET_MCU := CH32X035
+ TARGET_MCU_PACKAGE := CH32X035F8U6
+ CH32FUN := ../ch32fun/ch32fun
+@@ -55,3 +55,7 @@
+ 	cc -std=c11 -Wall -Wextra -Werror -pedantic -O2 -I. -o /tmp/test_m4_screen tests/test_m4_screen.c m4_screen.c m4_ui.c m2_ssd1306.c
+ 	/tmp/test_m4_screen
+ 	$(RM) /tmp/test_m4_screen
++
++	cc -std=c11 -Wall -Wextra -Werror -pedantic -O2 -I. -o /tmp/test_m4b_apply_guard tests/test_m4b_apply_guard.c m4_apply_guard.c
++	/tmp/test_m4b_apply_guard
++	$(RM) /tmp/test_m4b_apply_guard
+--- a/15_oled_encoder_ui/m4_ui.c
++++ b/16_oled_encoder_pps_control/m4_ui.c
+@@ -40,6 +40,14 @@
+     ui->desired_ma = desired_ma;
+ }
+ 
++static bool same_edit_apdo(const m4_pdo_t *a, const m4_pdo_t *b)
++{
++    return a->kind == M4_PDO_PPS && b->kind == M4_PDO_PPS &&
++           a->source_index == b->source_index &&
++           a->min_mv == b->min_mv && a->max_mv == b->max_mv &&
++           a->max_ma == b->max_ma;
++}
++
+ void m4_ui_set_pdos(m4_ui_t *ui, const m4_pdo_t *pdos, uint8_t count)
+ {
+     if (!pdos) count = 0u;
+@@ -48,6 +56,18 @@
+     ui->pdo_count = count;
+     if (count) memcpy(ui->pdos, pdos, sizeof(ui->pdos[0]) * count);
+     if (ui->pdo_index >= count) ui->pdo_index = 0u;
++    /* Source Capabilities may change asynchronously, even during editing.
++     * Never silently reuse a now-different APDO for an armed request. */
++    if (editing(ui->page)) {
++        bool found_same = false;
++        for (uint8_t i = 0u; i < count; ++i) {
++            if (same_edit_apdo(&ui->edit_apdo, &ui->pdos[i])) {
++                found_same = true;
++                break;
++            }
++        }
++        if (!found_same) m4_ui_result(ui, "SOURCE CAPS CHANGED");
++    }
+ }
+ 
+ static bool open_editor(m4_ui_t *ui)
+@@ -66,6 +86,7 @@
+         ui->edit_mv = ui->desired_mv;
+         ui->edit_ma = ui->desired_ma;
+         ui->edit_pdo_index = i;
++        ui->edit_apdo = *p;
+         ui->page = M4_PAGE_EDIT_V;
+         ++ui->revision;
+         return true;
+@@ -106,11 +127,11 @@
+             ui->pdo_index = (uint8_t)((ui->pdo_index +
+                 (events.rotation > 0 ? 1u : ui->pdo_count - 1u)) % ui->pdo_count);
+         } else if (ui->page == M4_PAGE_EDIT_V) {
+-            const m4_pdo_t *p = &ui->pdos[ui->edit_pdo_index];
++            const m4_pdo_t *p = &ui->edit_apdo;
+             ui->edit_mv = bounded_step(ui->edit_mv, events.rotation,
+                                        M4_V_STEP_MV, p->min_mv, p->max_mv);
+         } else if (ui->page == M4_PAGE_EDIT_I) {
+-            const m4_pdo_t *p = &ui->pdos[ui->edit_pdo_index];
++            const m4_pdo_t *p = &ui->edit_apdo;
+             ui->edit_ma = bounded_step(ui->edit_ma, events.rotation,
+                                        M4_I_STEP_MA, 50u, p->max_ma);
+         }
+@@ -143,6 +164,10 @@
+             action.ma = ui->edit_ma;
+             action.original_mv = ui->base_mv;
+             action.original_ma = ui->base_ma;
++            action.source_index = ui->edit_apdo.source_index;
++            action.apdo_min_mv = ui->edit_apdo.min_mv;
++            action.apdo_max_mv = ui->edit_apdo.max_mv;
++            action.apdo_max_ma = ui->edit_apdo.max_ma;
+             /* Prevent repeat APPLY events on a held/duplicated press. */
+             m4_ui_result(ui, "CONFIRM RECEIVED");
+             break;
+--- a/15_oled_encoder_ui/m4_ui.h
++++ b/16_oled_encoder_pps_control/m4_ui.h
+@@ -36,6 +36,11 @@
+     uint32_t ma;
+     uint32_t original_mv;
+     uint32_t original_ma;
++    /* The exact source PPS APDO selected when editing began. */
++    uint8_t source_index;
++    uint32_t apdo_min_mv;
++    uint32_t apdo_max_mv;
++    uint32_t apdo_max_ma;
+ } m4_action_t;
+ 
+ typedef struct {
+@@ -44,6 +49,7 @@
+     uint8_t pdo_index;
+     uint8_t pdo_count;
+     uint8_t edit_pdo_index;
++    m4_pdo_t edit_apdo; /* Stable snapshot; reject changed Source Caps. */
+     m4_pdo_t pdos[M4_MAX_PDOS];
+     uint32_t desired_mv;
+     uint32_t desired_ma;
+--- a/15_oled_encoder_ui/m4_screen.c
++++ b/16_oled_encoder_pps_control/m4_screen.c
+@@ -94,7 +94,7 @@
+         row(oled, 7, "BACK: MENU");
+         break;
+     case M4_PAGE_EDIT_V: {
+-        const m4_pdo_t *p = &ui->pdos[ui->edit_pdo_index];
++        const m4_pdo_t *p = &ui->edit_apdo;
+         row(oled, 0, "EDIT PPS VOLTAGE");
+         decimal(val, sizeof(val), (int32_t)ui->edit_mv, 1000u, 10u, 2u);
+         (void)snprintf(line, sizeof(line), "TARGET %sV", val);
+@@ -111,7 +111,7 @@
+         break;
+     }
+     case M4_PAGE_EDIT_I: {
+-        const m4_pdo_t *p = &ui->pdos[ui->edit_pdo_index];
++        const m4_pdo_t *p = &ui->edit_apdo;
+         row(oled, 0, "EDIT PPS REQ CURRENT");
+         (void)snprintf(line, sizeof(line), "REQ %luMA", (unsigned long)ui->edit_ma);
+         row(oled, 2, line);
