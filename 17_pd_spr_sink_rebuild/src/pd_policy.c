@@ -14,6 +14,7 @@ static bool reached(uint32_t now, uint32_t deadline) { return (int32_t)(now - de
 static void invalidate(pe_t *p) {
     p->contract_valid = false; p->pps_active = false; p->pending_pps = false;
     p->request_sent = false; p->command = PE_CMD_NONE; p->caps_fresh = false;
+    p->defer_active = false;
 }
 void pe_init(pe_t *p) { memset(p, 0, sizeof(*p)); p->state = PE_DETACHED; }
 static bool choose_pps(pe_t *p) {
@@ -166,7 +167,10 @@ void pe_event(pe_t *p, pe_event_t ev, const pe_caps_t *caps, uint32_t now) {
         else if (ev == PE_EV_REJECT || ev == PE_EV_WAIT) {
             if (p->contract_valid) { p->state = PE_READY; p->pending_pps = p->pps_active; }
             else { p->state = PE_WAIT_CAPS; p->deadline_ms = now + PE_CAPS_TIMEOUT_MS; }
-            if (ev == PE_EV_WAIT) p->defer_until_ms = now + PE_WAIT_RETRY_MS;
+            if (ev == PE_EV_WAIT) {
+                p->defer_until_ms = now + PE_WAIT_RETRY_MS;
+                p->defer_active = true;
+            }
         }
         return;
     }
@@ -186,6 +190,12 @@ void pe_command_result(pe_t *p, bool accepted, uint32_t now) {
     p->command = PE_CMD_NONE;
 }
 void pe_tick(pe_t *p, uint32_t now) {
+    /* A zero deadline is not an "inactive" timestamp: once 32-bit uptime
+       passes 0x80000000, reached(now, 0) becomes false for ~24 days.
+       Track backoff validity separately and retire expired deadlines.
+       Subtraction remains wrap-safe for the short (120ms) WAIT interval. */
+    if (p->defer_active && reached(now, p->defer_until_ms))
+        p->defer_active = false;
     if (p->state == PE_WAIT_CAPS && reached(now, p->deadline_ms)) {
         p->state = PE_RECOVERY; invalidate(p); p->faults++;
     }
@@ -200,7 +210,7 @@ void pe_tick(pe_t *p, uint32_t now) {
         p->state = PE_RECOVERY; invalidate(p); p->faults++;
     }
     if (p->state == PE_READY && p->pps_active && p->command == PE_CMD_NONE &&
-        reached(now, p->defer_until_ms) && elapsed(now, p->last_pps_ms) >= PE_PPS_REFRESH_MS) {
+        !p->defer_active && elapsed(now, p->last_pps_ms) >= PE_PPS_REFRESH_MS) {
         /* Re-send the same PPS request; not a synthetic Source_Capabilities. */
         select_request(p, now);
     }

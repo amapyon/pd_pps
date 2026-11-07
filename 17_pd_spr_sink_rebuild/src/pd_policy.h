@@ -19,6 +19,7 @@ typedef struct {
     pe_state_t state;
     bool contract_valid, pps_active, pending_pps, request_sent;
     bool caps_fresh, pending_soft_reset, awaiting_hr_recovery;
+    bool defer_active; /* true only while a WAIT backoff is pending */
     uint8_t pdo_index, caps_epoch;
     uint32_t last_pps_ms, deadline_ms, defer_until_ms;
     uint32_t requested_mv, requested_ma;
