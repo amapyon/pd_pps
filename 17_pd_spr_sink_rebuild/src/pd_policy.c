@@ -8,13 +8,16 @@
 #define PE_CAPS_TIMEOUT_MS 650u
 #define PE_PPS_REFRESH_MS 5000u
 #define PE_WAIT_RETRY_MS 120u
+/* Bench sink: do not continue indefinitely when a Source refuses PPS renewal.
+   At most two retry Requests after the first WAIT (three WAITs total). */
+#define PE_MAX_PPS_WAIT_REPLIES 3u
 
 static uint32_t elapsed(uint32_t now, uint32_t since) { return now - since; }
 static bool reached(uint32_t now, uint32_t deadline) { return (int32_t)(now - deadline) >= 0; }
 static void invalidate(pe_t *p) {
     p->contract_valid = false; p->pps_active = false; p->pending_pps = false;
     p->request_sent = false; p->command = PE_CMD_NONE; p->caps_fresh = false;
-    p->defer_active = false;
+    p->defer_active = false; p->pps_wait_count = 0u;
 }
 void pe_init(pe_t *p) { memset(p, 0, sizeof(*p)); p->state = PE_DETACHED; }
 static bool choose_pps(pe_t *p) {
@@ -130,6 +133,8 @@ void pe_event(pe_t *p, pe_event_t ev, const pe_caps_t *caps, uint32_t now) {
         /* A Soft Reset reinitializes protocol message counters in PHY.
            It does not itself invalidate the explicit power contract. */
         p->pending_soft_reset = true; p->command = PE_CMD_ACCEPT_SOFT_RESET;
+        p->defer_active = false; p->pps_wait_count = 0u;
+        p->request_sent = false;
         p->state = PE_WAIT_CAPS; p->deadline_ms = now + PE_CAPS_TIMEOUT_MS;
         return;
     }
@@ -163,11 +168,35 @@ void pe_event(pe_t *p, pe_event_t ev, const pe_caps_t *caps, uint32_t now) {
         return;
     }
     if (p->state == PE_WAIT_ACCEPT) {
-        if (ev == PE_EV_ACCEPT && p->request_sent) { p->state = PE_WAIT_PS_RDY; p->deadline_ms = now + PE_PS_RDY_TIMEOUT_MS; }
-        else if (ev == PE_EV_REJECT || ev == PE_EV_WAIT) {
-            if (p->contract_valid) { p->state = PE_READY; p->pending_pps = p->pps_active; }
-            else { p->state = PE_WAIT_CAPS; p->deadline_ms = now + PE_CAPS_TIMEOUT_MS; }
+        if (ev == PE_EV_ACCEPT && p->request_sent) {
+            p->state = PE_WAIT_PS_RDY;
+            p->deadline_ms = now + PE_PS_RDY_TIMEOUT_MS;
+        } else if (ev == PE_EV_REJECT || ev == PE_EV_WAIT) {
+            /* A response before our Request was actually transmitted cannot
+               belong to this AMS. Never leave a stale Request queued. */
+            if (!p->request_sent ||
+                /* A REJECT of a renewal must not cause a per-loop flood of
+                   Request messages after the 5 s renewal deadline. */
+                (p->contract_valid && ev == PE_EV_REJECT) ||
+                /* Bound consecutive WAITs. With an existing PPS contract,
+                   indefinitely retrying every 120 ms is not safe. */
+                (p->contract_valid && p->pps_active && ev == PE_EV_WAIT &&
+                 p->pps_wait_count + 1u >= PE_MAX_PPS_WAIT_REPLIES)) {
+                p->state = PE_RECOVERY;
+                invalidate(p);
+                p->faults++;
+                return;
+            }
+            if (p->contract_valid) {
+                p->state = PE_READY;
+                p->pending_pps = p->pps_active;
+            } else {
+                p->state = PE_WAIT_CAPS;
+                p->deadline_ms = now + PE_CAPS_TIMEOUT_MS;
+            }
+            p->request_sent = false;
             if (ev == PE_EV_WAIT) {
+                if (p->contract_valid && p->pps_active) p->pps_wait_count++;
                 p->defer_until_ms = now + PE_WAIT_RETRY_MS;
                 p->defer_active = true;
             }
@@ -180,6 +209,8 @@ void pe_event(pe_t *p, pe_event_t ev, const pe_caps_t *caps, uint32_t now) {
         p->requested_mv = p->pending_pps ? PE_MV : 5000u;
         p->requested_ma = PE_MA;
         p->last_pps_ms = now;
+        p->pps_wait_count = 0u;
+        p->defer_active = false;
     }
 }
 void pe_command_result(pe_t *p, bool accepted, uint32_t now) {

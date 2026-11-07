@@ -2,7 +2,7 @@
 
 > **目的**：USB PD/PPSの実験・測定ツールを開発し、BOOTHで「組み立て済み完成品」と「部品未実装のベアPCB」を同人販売する。
 >
-> **更新日**：2026-11-08　｜　**フェーズ**：技術検証（**M4基本機能は進行中、M7先行のPD17通信／Hard Reset復旧を2種の充電器で検証、M13b通常運用版はUGREEN/ダイソー2機種で実機PASS、M13c-1は2充電器の短時間実機PASS、M13c-2はUGREEN/ダイソーの短時間実機PASS**）　｜　**現在の作業**：M13c-2の2機種短時間実機検証完了。M13d試験計画はGitHub保存済み。**M13eでADC/PEのホスト故障注入8ケースPASS**。**M13fは32bit時刻高位領域でのPPS更新阻害を修正し、Policy/PHYホスト境界テスト20ケースPASS、Windows Build/FlashとUGREEN/ダイソー短時間実機PASS**。**連続運転とSource発Hard Reset実機試験はいずれもユーザー判断で保留**
+> **更新日**：2026-11-08　｜　**フェーズ**：技術検証（**M4基本機能は進行中、M7先行のPD17通信／Hard Reset復旧を2種の充電器で検証、M13b通常運用版はUGREEN/ダイソー2機種で実機PASS、M13c-1は2充電器の短時間実機PASS、M13c-2はUGREEN/ダイソーの短時間実機PASS**）　｜　**現在の作業**：M13c-2の2機種短時間実機検証完了。M13d試験計画はGitHub保存済み。**M13eでADC/PEのホスト故障注入8ケースPASS**。**M13fは32bit時刻高位領域でのPPS更新阻害を修正し、Policy/PHYホスト境界テスト20ケースPASS、Windows Build/FlashとUGREEN/ダイソー短時間実機PASS**。**M13gでPPS更新REJECTの無待機再送と未送信RequestへのWAIT/REJECTを修正し、新規状態遷移・PHY結合20ケースPASS、UGREEN/ダイソー短時間実機回帰PASS（Windows Build/Flash出力は未提示、未接続heartbeat確認）**。**連続運転とSource発Hard Reset実機試験はいずれもユーザー判断で保留**
 
 > **マイルストーン番号の扱い（2026-11-03整理）**：正式な **M5＝PC制御、M6＝独自ファーム更新、M7＝安定性・保護** を維持する。会話内で「M5」と呼んだ15Ω負荷試験、および「M6-T01～M6-T03-B」と呼んだ要求電流試験は、**M7の先行実機検証**として本書に記録する（過去ログの試験IDは変更しない）。既存の番号付き実験フォルダーは改名しない。
 
@@ -35,7 +35,7 @@
 
 ## 2. 現在地（2026-11-08時点）
 
-> 本節に残すM1～M4の個別実測値は2026-11-03までの記録。以下に2026-11-07の**独立した通信基盤実験 `17_pd_spr_sink_rebuild`** を追記する。PD17内部の「M8～M13f」はこの実験内の段階名であり、製品ロードマップの正式なM8（全機能統合）などとは**別体系**。
+> 本節に残すM1～M4の個別実測値は2026-11-03までの記録。以下に2026-11-07の**独立した通信基盤実験 `17_pd_spr_sink_rebuild`** を追記する。PD17内部の「M8～M13g」はこの実験内の段階名であり、製品ロードマップの正式なM8（全機能統合）などとは**別体系**。
 
 ### 確認済み
 
@@ -83,7 +83,8 @@
 - [x] **M13c-2ソース・ホスト・通常系短時間実機PASS**：Source発Hard Reset復旧時のARM_RX/COMMITがBusyのままなら20msで停止する制限と、最初の停止原因をCC切断後に報告する診断を追加。旧ホスト回帰PASS。Windows/xPack Build/Flash/heartbeat PASS（FLASH 38,320B、RAM 3,388B）。UGREEN 90551 CC2：24,228ms、PPS更新4/4、停止`reason=1`・CC切断126ms前。ダイソー GaN 20W CC1：36,856ms、更新7/7、同`reason=1`・切断126ms前。両機種とも`hr_rx=0`、ADC異常0、TRACE/イベント欠落0。**20ms復旧ゲート停止・ADC故障注入・Source発HRの実機動作は未検証**。
 - [x] **M13d Source発Hard Reset実機試験計画・ログ判定ツール**：`docs/M13D_SOURCE_ORIGINATED_HARD_RESET_PLAN.md`と`tests/check_source_hr_log.py`を作成。ソフトウェアの合成ログ12ケースPASS。**M13c-2のファームウェアは変更しない。Source発HRの実機試験は未実施**。
 - [x] **M13eソフトウェア故障注入・ホスト結合テストPASS**：ADC変換未完了（3msタイムアウト）・変換開始失敗、SourceCaps／Request／Accept／PS_RDY待ち、PPS更新中のタイムアウト、TX_FAILEDを計8ケース注入。製品ADC監視・Policy Engine・PHY・停止診断を用いてPD送信/GoodCRC停止、停止原因保全、物理CC再接続での再交渉を検証。既存ホスト回帰15系統、Clang UBSan、M13d Python 12ケースもPASS。**本番FWの変更なし、実機での故障注入は未実施**。
-- [x] **M13f PPS更新・MessageID境界のホスト検証PASS**：旧PEの`defer_until_ms=0`比較による32bit高位領域での更新停止を再現し、`defer_active`で修正。PPS 4,999/5,000ms、WAIT 119/120ms、PE各タイムアウト、32bit折り返し、PHY MessageID 7→0等、Policy 15＋PHY 5の計20ケースPASS。既存を含むシェル17系統、Python 12ケース、Clang UBSanもPASS。**製品コード2ファイル変更。Windows Build/Flash・UGREEN/ダイソー短時間実機は後続試験でPASS**。`docs/M13F_PPS_TIMING_AND_MESSAGE_ID.md`参照。
+- [x] **M13f PPS更新・MessageID境界のホスト検証PASS**：旧PEの`defer_until_ms=0`比較による32bit高位領域での更新停止を再現し、`defer_active`で修正。PPS 4,999/5,000ms、WAIT 119/120ms、PE各タイムアウト、32bit折り返し、PHY MessageID 7→0等、Policy 15＋PHY 5の計20ケースPASS。既存を含むシェル17系統、Python 12ケース、Clang UBSanもPASS。**製品コード2ファイル変更。Windows Build/Flash・UGREEN/ダイソー短時間実機は後続試験でPASS**。`docs/M13F_PPS_TIMING_AND_MESSAGE_ID.md`、`docs/M13G_PPS_REJECT_WAIT_STATE_GUARDS.md`参照。
+- [x] **M13g PPS更新REJECT/WAIT反復と状態遷移ガードのホストPASS**：M13fの旧PEで、契約中のREJECT直後に次tickでRequestが再生成されること、未送信RequestへWAIT/REJECTを受けた場合に未送信コマンドが残ることを再現。REJECT時は安全停止、PPS更新WAITは連続3回目で停止（120ms再試行は従来維持）。製品PEの2ファイルを変更。状態遷移18＋実PHY結合2の**20/20 PASS**、既存17シェル系統、Python12件、Clang UBSan PASS。**UGREEN/ダイソーのM13g通常PPS短時間実機PASS。Windows Build/Flashの出力は未提示、未接続heartbeatを確認。REJECT/WAIT異常応答の実機注入は未検証**。`docs/M13G_PPS_REJECT_WAIT_STATE_GUARDS.md`参照。
 - [ ] Source起因Hard Resetの実機復旧、2回目Hard Reset、ADC故障注入、各種タイムアウトの実機評価。CC1/CC2の正常系と2機種でのPPS維持はM13bで確認済み。
 
 ### 未検証・未実装
@@ -160,7 +161,7 @@
 | M4 | スタンドアロンUIの実証 | **進行中**（M4-A基本操作合格、M4-B実送信・対象安全操作合格。網羅的な異常系は残る） | `15_oled_encoder_ui`：デモ専用版保全。`16_oled_encoder_pps_control`：実機Build/Flash、7.00→7.10→7.00V、REQ1000↔1050mA、キャンセル・PD切断/再接続・編集ガード等、30分無負荷安定試験、PCテスト13種 | **基本操作は合格**。Source Caps変更・コンソール競合・全負荷回帰等の未実施試験、接続時タイムアウト調査と製品安全評価を別途完了する | — |
 | M5 | PC制御・データ取得 | **未着手** | `pc_control`（フォルダー番号未定、旧仮称`17_pc_control`） | 一般的なPC接続で設定・計測・ログ取得が可能 | — |
 | M6 | 独自ファーム書き込み・復旧 | **未着手** | `18_firmware_update` | 書き込み・更新・失敗時の復旧を手順化し確認 | — |
-| M7 | 安定性・保護 | **進行中**（15Ω負荷先行検証＋PD17通信/Hard Resetの2充電器実機試験。保護全体は未完了） | 15Ω/REQ試験ログ、`17_pd_spr_sink_rebuild`のPD17内部M8～M13b実機ログ（M13b 2機種正常系）。M13c-1およびM13c-2は2機種の短時間実機PASS。計画`19_pps_stability_protection`は未作成 | 充電器互換性、Source発Hard Reset、PPSリフレッシュ、タイムアウト、異常系、ハードウェア保護を段階的に評価。2充電器の機能確認では全体通過としない | — |
+| M7 | 安定性・保護 | **進行中**（15Ω負荷先行検証＋PD17通信/Hard Resetの2充電器実機試験。保護全体は未完了） | 15Ω/REQ試験ログ、`17_pd_spr_sink_rebuild`のPD17内部M8～M13b実機ログ（M13b 2機種正常系）。M13c-1・M13c-2・M13f・M13gは2機種の短時間通常系実機PASS。計画`19_pps_stability_protection`は未作成 | 充電器互換性、Source発Hard Reset、PPSリフレッシュ、タイムアウト、異常系、ハードウェア保護を段階的に評価。2充電器の機能確認では全体通過としない | — |
 | M8 | 全機能統合試作 | **未着手** | `20_integrated_prototype` | UIとPC制御、PD交渉、計測が同時に動作 | — |
 | M9 | 共通PCB Rev.A → 製品版 | **未着手** | 回路図・PCB・BOM・試作／改版 | 完成品とベアPCBに共通の設計を評価完了 | — |
 | M10 | 販売準備・BOOTH初回販売 | **未着手** | 製造・検査・説明書・商品ページ | 安全・法令・品質・サポートを確認し2商品を公開 | — |
@@ -176,7 +177,7 @@
 | **済（M3完了）** | `14_encoder_ec11` | PA4/PA5のEC11 A/Bで右/左5クリックずつ、PA6押下/PA7戻る各3回検出。PD/PPS/INA226/OLED共存 | 21,016B Flash、1,284B RAM、Flash成功、GPIOイベントログ、OLED写真。長時間/高速操作は後続で追加評価 |
 | **済（M4-A基本機能合格）** | `15_oled_encoder_ui` | 監視画面、4件のPDO/APDO閲覧、電圧/要求電流編集・キャンセル・確認。プレビュー専用、実PPS変更は無効 | ホストテスト12種類合格。実機Build/Flash成功、操作画面写真、7.00V/1000mA維持を確認。10分UI連続操作は未実施 |
 | **済（M4-B基本機能合格）** | `16_oled_encoder_pps_control` | OLED/EC11からの実PPS APPLY、表示とINA226 BUS追従、既知の安全ガードを実機検証 | Build/Flash合格、FLASH25,228B・RAM1,564B、ホスト13種類、7.00→7.10→7.00VとREQ変更、対象ガード・30分安定・OLED写真/ログ。元計画の全項目を完了扱いしない |
-| **M7先行（M13c-1／M13c-2とも2充電器短時間実機済）** | `17_pd_spr_sink_rebuild` | CC/PHY/PD通信・PPS周期更新・VBUS低下・Hard Reset復旧を独立検証。M13bで通常運用向け刺激を停止 | UGREEN/ダイソーM13a-7 HRログ、M13b正常系2充電器実機ログ。M13c-1の2充電器短時間実機ログ。**M13c-2 Windows Build/Flash・2機種短時間実機PASS、M13eホスト故障注入8/8、M13f境界ホスト20/20、Windows Build/Flash・2機種通常PPS短時間実機PASS、連続試験は別途** |
+| **M7先行（M13c-1／M13c-2とも2充電器短時間実機済）** | `17_pd_spr_sink_rebuild` | CC/PHY/PD通信・PPS周期更新・VBUS低下・Hard Reset復旧を独立検証。M13bで通常運用向け刺激を停止 | UGREEN/ダイソーM13a-7 HRログ、M13b正常系2充電器実機ログ。M13c-1の2充電器短時間実機ログ。**M13c-2 Windows Build/Flash・2機種短時間実機PASS、M13eホスト故障注入8/8、M13f境界ホスト20/20・Windows Build/Flash・2機種通常PPS短時間実機PASS、M13g状態遷移20/20・2機種通常PPS短時間実機PASS、連続試験は別途** |
 | 4 | `pc_control`（番号未定、旧仮称`17_pc_control`） | USB通信方式、コマンドAPI、Python制御、CSVログ、PC側とPD側の電源分離 | PC制御サンプル、通信仕様、ログ |
 | 5 | `18_firmware_update` | 独自ファームを書き込む方法、初期化、復旧用デバッグ端子、書き込み失敗時の復帰 | 書き込み／復旧手順と再現試験 |
 | **次段階（M7先行試験済み）** | `19_pps_stability_protection`（計画上・未作成） | 15Ω負荷・REQ 500/300mAの先行実測を引き継ぎ、接続時タイムアウト、互換性、短絡を含まない段階的な保護設計・負荷変動等を検証 | 2026-11-03の先行ログは合格。**M7全体の合格は未判定**。安全条件を定めて個別に評価 |
@@ -238,7 +239,8 @@
 | D14 | 通常運用版とベンチ版の分離 | M13a-7の試験用自動Hard Reset/Get_Source_CapはM13bでは無効。Source発Hard Resetに対し同一CC接続1回だけ保守的復旧 | **M13b 2機種正常系実機PASS。Source発HR実機は機材不足で保留** |
 | D15 | Hard Reset復旧時のADC閾値 | raw≤70が3点→raw 540～610が3点の保守閾値、10ms監視。近ゼロADC校正とUSB-IF規格適合性、電源保持は未確定 | **暫定、製品設計前に再評価** |
 | D16 | 長時間観測とADC/PE異常停止 | M13c-1で127件TRACEとは独立した累積統計を追加。ADC監視故障や通常PEタイムアウト時にPHYのTX/GoodCRCを停止し、CC再接続まで契約失効 | **M13eホスト故障注入8ケースPASS。M13fの32bit更新期限修正はホスト20ケース、Windows Build/Flashおよび2機種短時間実機PASS。実機故障注入は未実施** |
-| D18 | PPS更新の32bit時刻境界・WAIT期限管理 | M13fで未設定`defer_until_ms=0`と32bit高位時刻の符号付き差の比較により更新が止まる問題を再現し、`defer_active`で明示管理に変更。5秒周期・120ms待機・期限境界・MessageID 7→0を製品PE/PHYのホストテスト20件で検証 | **ホスト20/20 PASS。Windows Build/Flash、UGREEN/ダイソー短時間通常PPS動作PASS。24.9日経過時の時刻境界そのものは実機未検証。待機応答の無制限反復への対処は別課題** |
+| D18 | PPS更新の32bit時刻境界・WAIT期限管理 | M13fで未設定`defer_until_ms=0`と32bit高位時刻の符号付き差の比較により更新が止まる問題を再現し、`defer_active`で明示管理に変更。5秒周期・120ms待機・期限境界・MessageID 7→0を製品PE/PHYのホストテスト20件で検証 | **ホスト20/20 PASS。Windows Build/Flash、UGREEN/ダイソー短時間通常PPS動作PASS。24.9日経過時の時刻境界そのものは実機未検証。M13gで連続WAIT上限とREJECT無待機再送のガードを追加（ホスト20/20、2機種通常PPS実機回帰PASS。異常応答実機注入は未検証）** |
+| D19 | PPS更新REJECT/WAIT反復・未送信応答時の安全停止 | M13gでM13f旧PEのREJECT直後無待機再送、未送信RequestへのWAIT/REJECT時のコマンド残留を再現・修正。PPS WAIT連続3回目でPE_RECOVERY、再送なし。通常の5秒PPS更新と120ms WAIT待機は維持 | **ホスト状態遷移18/18＋PHY結合2/2 PASS。通常系のUGREEN/ダイソー短時間実機PASS（Windows Build/Flash出力は未提示、heartbeat確認）。実機異常応答注入は未検証** |
 | D17 | HR復旧ゲートBusyの上限と停止原因の記録 | M13c-2で20msの受信再開/コミット待ち上限（実験値）とセッション最初の停止理由スナップショットを追加。正常なケーブル抜去でもVBUS停止理由が残る | **ホストPASS、Windows Build/Flash・2機種正常PPS・切断診断の短時間実機PASS。Hard Reset復旧ゲート異常系は未検証** |
 
 決定時には、選択肢・決定内容・根拠・日付をこの表に反映する。必要なら `docs/` に詳細な設計判断記録（ADR）を追加する。
@@ -255,8 +257,9 @@
 - [x] **M13fホスト境界テスト**：32bit高位領域でのPPS更新停止を再現・修正。5秒/120ms/PE各待機期限、MessageID 7→0を20ケースで確認。既存ホスト回帰とClang UBSanもPASS。
 - [x] **M13f Windows Build/Flashと2機種短時間実機確認**：FLASH 38,372B（60.44%）、RAM 3,388B（16.54%）、未接続heartbeat。UGREEN 90551 CC2：26,856ms、PPS更新5/5、VBUS契約失効はCC切断124ms前。ダイソー GaN 20W：37,893ms、PPS更新7/7、CC切断113ms前。両機種で`PD17 STOP reason=1`、ADC異常/TRACE/イベント欠落0。**M13fの24.9日境界そのもの・長時間運転は実機未検証**。
 - [ ] **M13c長時間安定試験（ユーザー判断で別途実施）**：短時間の累積統計・停止診断は確認済み。各充電器の数分～10分以上の連続PPS運転は保留。詳細TRACEは127件で溢れ得るため、独立累積統計とVBUS監視結果で判定。
+- [x] **M13g ホスト状態遷移＋PHY停止の検証**：M13f旧PEのREJECT無待機再送と未送信WAIT/REJECTを修正。20ケースPASS。製品PE2ファイル変更、**UGREEN/ダイソー2機種のM13g通常動作短時間実機確認済み（Windows Build/Flash出力は未提示、heartbeat確認）。異常応答実機注入は未実施**。
 - [ ] **M13b Source発Hard Reset（ユーザー判断で保留）**：M13dで試験計画・判定ツール準備済み。Source側機材がなく現在は実機試験を実施しない。
-- [x] **PD17 M13eまでのGit保存**：`f1f3a66`（M13c-1まで）、`20981cb`（M13c-2）、`b3d1768`（M13d計画・ログ判定）、`b8391ea`（M13e故障注入）を`origin/main`へPush完了。**M13fはコミット前**。既存16bの未コミット変更には触れない。
+- [x] **PD17 M13eまでのGit保存**：`f1f3a66`（M13c-1まで）、`20981cb`（M13c-2）、`b3d1768`（M13d計画・ログ判定）、`b8391ea`（M13e故障注入）を`origin/main`へPush完了。**M13fは`c48234e`として`origin/main`にPush済み。M13gはホスト20/20＋2機種通常PPS短時間実機PASS・未コミット**。既存16bの未コミット変更には触れない。
 
 - [x] 既知負荷をR010直列経路に接続し、5V・7V・9VでINA226の電圧・電流・電力を取得し、DMM・USB測定器と比較する。
 - [x] M1の電流・電力計測**機能**の成立を確認し、絶対精度・校正は製品基板で再評価すると決定する。
@@ -284,6 +287,8 @@
 
 | 日付 | 対象 | 結果・判断 | 次のアクション |
 | --- | --- | --- | --- |
+| 2026-11-08 | **PD17 M13g UGREEN/ダイソー短時間実機回帰** | 未接続heartbeatを確認（Build/Flashのコンソール出力は未提示）。UGREEN 90551 USB-C1：26,977ms、Ready 26,348ms、PPS更新5/5、最大ループ3ms、ADC校正7.033V／INA226 6.996V、CC切断127ms前に`STOP reason=1`。ダイソー GaN 20W：42,843ms、Ready 41,962ms、PPS更新8/8、最大ループ1ms、ADC校正6.997V／INA226 6.960V、CC切断123ms前に`STOP reason=1`。両機種とも`source_hr=0`、`adc_fault=0`、ADCタイムアウト0、TRACE/イベント欠落0。**ダイソーは統計・診断抜粋で判定（個別Requestフレームは未提示）。M13gで追加したREJECT/WAIT異常応答の実機注入は未検証** | M13gソース・テスト・検証記録・ROADMAPをGitで保存。連続運転、Source発Hard Reset実機、ADC故障実機注入は保留 |
+| 2026-11-08 | PD17 M13g REJECT/WAIT・状態遷移安全停止（ホスト） | 旧M13fで更新REJECT直後の無待機Request再送と、Request未送信中WAITによるコマンド残留を再現。M13gで有効契約中のREJECT・未送信RequestへのWAIT/REJECTは直ちにRECOVERY、PPS連続WAITは3回目でRECOVERYとし送信を止める。状態遷移18/18、実PHY結合2/2（PD TX/GoodCRC停止とCC再接続）、従来ホストシェル17系統・M13d Python12/12・Clang UBSan PASS。**Windows Build/FlashとUGREEN/ダイソーM13g実機回帰は未実施** | ZIP差分を適用後、USB-C充電器未接続でWindows Build/Flash/heartbeat。続いてUGREEN→ダイソーの短時間通常PPS回帰。異常応答の実機注入・連続運転・Source発HRは保留 |
 | 2026-11-08 | PD17 M13f UGREEN/ダイソー短時間実機 | Windows/xPack Build/Flash/heartbeat PASS：FLASH 38,372B（60.44%）、RAM 3,388B（16.54%）。UGREEN 90551 USB-C1：CC2、26,856ms、Ready 26,213ms、PPS更新5/5、最大ループ3ms、ADC校正7.042V／INA226 6.998V、CC切断124ms前に`STOP reason=1`。ダイソー GaN 20W：37,893ms、Ready 37,048ms、PPS更新7/7、最大ループ1ms、ADC校正7.006V／INA226 6.961V、CC切断113ms前に`STOP reason=1`。両機種とも`source_hr=0`、`adc_fault=0`、TRACE/イベント欠落0。ダイソーの提出ログは診断概要部分のみで、今回の個別Requestフレームは未提示。**通常PPS回帰のPASSであり24.9日境界の実機証明ではない** | 本番PE変更を実機短時間回帰まで確認。M13f差分とROADMAPをGitへコミット。Source発HR実機・長時間運転・実機故障注入は従来どおり保留 |
 | 2026-11-08 | PD17 M13f PPS時刻境界・MessageID | M13eを基準に、32bit時刻高位領域で`defer_until_ms=0`の比較がPPS更新を阻害することを旧コードで再現。製品PEに`defer_active`を追加してWAIT再試行120ms期限を明示管理。PPS 4,999/5,000ms、WAIT 119/120ms、PE期限、SysTick由来msの折り返し、PHY MessageID 7→0の20ケースPASS。既存を含むシェル17系統、M13d Python 12件、Clang UBSan PASS。**この時点ではWindows Build/Flash・2機種M13f実機未検証。その後、上記短時間実機2機種でPASS。長時間実機の代替ではない** | 後続行に実機結果を記録。Source発HR実機・連続運転・故障注入実機は保留 |
 | 2026-11-08 | PD17 M13eソフトウェア故障注入 | `tests/test_m13e_fault_injection.c`で実モジュール（ADC監視・PE・PHY・停止診断・累積統計）＋ADC/USBPDモックを結合。EOC未到来3ms/ADC開始失敗、SourceCaps/Request/Accept/PS_RDY待機期限、PPS更新期限、TX_FAILEDの8ケースPASS。各ケースで契約失効・送信/GoodCRC停止・最初の停止理由記録・CC物理切断再接続後の正常再交渉を検証。既存回帰15系統、M13d Python 12/12、Clang UBSan PASS。**実機故障注入ではない・本番FW変更なし** | Source発HR実機・長時間運転はユーザー判断で保留。実機ADC故障は安全な治具ができるまで未実施。M13eテストとROADMAPをGitで保存 |
@@ -355,7 +360,7 @@ git push
 - [`14_encoder_ec11/`](14_encoder_ec11/)：**M3実機で入力4操作と既存機能共存を検証済み**。
 - [`15_oled_encoder_ui/`](15_oled_encoder_ui/)：**M4-A実機基本操作検証済み**のUIプレビュー版（実PPS要求変更は禁止）。
 - [`16_oled_encoder_pps_control/`](16_oled_encoder_pps_control/)：M4-B実PPS制御の**実機基本機能検証済み版**（PCホスト13種、Build/Flash、PPS APPLY・対象UIガード・30分無負荷安定）。未実施の異常系は別途管理。
-- [`17_pd_spr_sink_rebuild/`](17_pd_spr_sink_rebuild/)：M7先行の独立PD通信実験。M13a-7は2充電器Sink発HR実機確認、M13bは**2充電器通常PPS実機PASS**、M13c-1は**2充電器の短時間実機PASS**、M13c-2は**Windows Build/Flash・UGREEN/ダイソーの通常PPSと停止診断の短時間実機PASS**。M13eでは**ホスト故障注入8/8 PASS**（本番FW不変）、M13fでは**時刻境界・MessageIDホスト20/20 PASS**（PEを修正、Windows Build/Flash・2機種短時間実機PASS）。Source発HRの実機評価と連続運転試験はユーザー判断で保留。`docs/M13B_NORMAL_SINK.md`、`docs/M13C_STABILITY_AND_FAIL_CLOSED.md`、`docs/M13C2_HR_GATE_AND_STOP_DIAG.md`、`docs/M13D_SOURCE_ORIGINATED_HARD_RESET_PLAN.md`、`docs/M13E_HOST_FAULT_INJECTION.md`、`docs/M13F_PPS_TIMING_AND_MESSAGE_ID.md`参照。
+- [`17_pd_spr_sink_rebuild/`](17_pd_spr_sink_rebuild/)：M7先行の独立PD通信実験。M13a-7は2充電器Sink発HR実機確認、M13bは**2充電器通常PPS実機PASS**、M13c-1は**2充電器の短時間実機PASS**、M13c-2は**Windows Build/Flash・UGREEN/ダイソーの通常PPSと停止診断の短時間実機PASS**。M13eでは**ホスト故障注入8/8 PASS**（本番FW不変）、M13fでは**時刻境界・MessageIDホスト20/20 PASS**（PEを修正、Windows Build/Flash・2機種短時間実機PASS）。M13gでは**REJECT/WAIT状態遷移・PHY停止ホスト20/20 PASS、UGREEN/ダイソー短時間通常PPS実機PASS**（PE2ファイル変更、異常応答実機注入は未実施）。Source発HRの実機評価と連続運転試験はユーザー判断で保留。`docs/M13B_NORMAL_SINK.md`、`docs/M13C_STABILITY_AND_FAIL_CLOSED.md`、`docs/M13C2_HR_GATE_AND_STOP_DIAG.md`、`docs/M13D_SOURCE_ORIGINATED_HARD_RESET_PLAN.md`、`docs/M13E_HOST_FAULT_INJECTION.md`、`docs/M13F_PPS_TIMING_AND_MESSAGE_ID.md`参照。
 - [`dev-workspace/`](dev-workspace/)：VS Codeワークスペース設定と開発用PowerShellスクリプトのGit管理用コピー。
 
 ---
