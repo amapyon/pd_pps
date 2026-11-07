@@ -2,7 +2,7 @@
 
 > **目的**：USB PD/PPSの実験・測定ツールを開発し、BOOTHで「組み立て済み完成品」と「部品未実装のベアPCB」を同人販売する。
 >
-> **更新日**：2026-11-08　｜　**フェーズ**：技術検証（**M4基本機能は進行中、M7先行のPD17通信／Hard Reset復旧を2種の充電器で検証、M13b通常運用版はUGREEN/ダイソー2機種で実機PASS、M13c-1は2充電器の短時間実機PASS、M13c-2はUGREEN/ダイソーの短時間実機PASS**）　｜　**現在の作業**：M13c-2の2機種短時間実機検証完了。M13dでSource発Hard Resetの実機試験手順とログ自動判定を準備。**連続運転試験は別途実施として保留**。Source発Hard Resetの実機評価は未実施
+> **更新日**：2026-11-08　｜　**フェーズ**：技術検証（**M4基本機能は進行中、M7先行のPD17通信／Hard Reset復旧を2種の充電器で検証、M13b通常運用版はUGREEN/ダイソー2機種で実機PASS、M13c-1は2充電器の短時間実機PASS、M13c-2はUGREEN/ダイソーの短時間実機PASS**）　｜　**現在の作業**：M13c-2の2機種短時間実機検証完了。M13d試験計画はGitHub保存済み。**M13eでADC/PEのホスト故障注入8ケースPASS（本番FW変更なし）**。**連続運転とSource発Hard Reset実機試験はいずれもユーザー判断で保留**
 
 > **マイルストーン番号の扱い（2026-11-03整理）**：正式な **M5＝PC制御、M6＝独自ファーム更新、M7＝安定性・保護** を維持する。会話内で「M5」と呼んだ15Ω負荷試験、および「M6-T01～M6-T03-B」と呼んだ要求電流試験は、**M7の先行実機検証**として本書に記録する（過去ログの試験IDは変更しない）。既存の番号付き実験フォルダーは改名しない。
 
@@ -33,9 +33,9 @@
 - **PD電源用USB-C**と**PC通信・書き込み用USB-C**を分ける案を基本候補とする。ただし、電源分離・逆流防止・MCUピン割り当ては未決定。
 - 完成品の全数検査と、ベアPCB購入者が再現できる公開資料を共通の設計データから作成する。
 
-## 2. 現在地（2026-11-07時点）
+## 2. 現在地（2026-11-08時点）
 
-> 本節に残すM1～M4の個別実測値は2026-11-03までの記録。以下に2026-11-07の**独立した通信基盤実験 `17_pd_spr_sink_rebuild`** を追記する。PD17内部の「M8～M13c-2」はこの実験内の段階名であり、製品ロードマップの正式なM8（全機能統合）などとは**別体系**。
+> 本節に残すM1～M4の個別実測値は2026-11-03までの記録。以下に2026-11-07の**独立した通信基盤実験 `17_pd_spr_sink_rebuild`** を追記する。PD17内部の「M8～M13e」はこの実験内の段階名であり、製品ロードマップの正式なM8（全機能統合）などとは**別体系**。
 
 ### 確認済み
 
@@ -82,6 +82,7 @@
 - [x] **M13c-1ソース・ホスト・実機短時間テストPASS**：累積統計と通常PEタイムアウト/ADC故障時の停止をホストで確認。Windows/xPack Build/Flash PASS（FLASH 36,752B、RAM 3,388B）。UGREEN 90551 CC2：28,214ms、PPS更新5/5、最大ループ間隔3ms、VBUS失効-124ms。ダイソー GaN 20W CC1：39,272ms、更新7/7、最大間隔1ms、VBUS失効-122ms。両機種とも`adc_fault=0`、`event_lost_session=0`。**長時間試験・ADC故障注入は未実施**。
 - [x] **M13c-2ソース・ホスト・通常系短時間実機PASS**：Source発Hard Reset復旧時のARM_RX/COMMITがBusyのままなら20msで停止する制限と、最初の停止原因をCC切断後に報告する診断を追加。旧ホスト回帰PASS。Windows/xPack Build/Flash/heartbeat PASS（FLASH 38,320B、RAM 3,388B）。UGREEN 90551 CC2：24,228ms、PPS更新4/4、停止`reason=1`・CC切断126ms前。ダイソー GaN 20W CC1：36,856ms、更新7/7、同`reason=1`・切断126ms前。両機種とも`hr_rx=0`、ADC異常0、TRACE/イベント欠落0。**20ms復旧ゲート停止・ADC故障注入・Source発HRの実機動作は未検証**。
 - [x] **M13d Source発Hard Reset実機試験計画・ログ判定ツール**：`docs/M13D_SOURCE_ORIGINATED_HARD_RESET_PLAN.md`と`tests/check_source_hr_log.py`を作成。ソフトウェアの合成ログ12ケースPASS。**M13c-2のファームウェアは変更しない。Source発HRの実機試験は未実施**。
+- [x] **M13eソフトウェア故障注入・ホスト結合テストPASS**：ADC変換未完了（3msタイムアウト）・変換開始失敗、SourceCaps／Request／Accept／PS_RDY待ち、PPS更新中のタイムアウト、TX_FAILEDを計8ケース注入。製品ADC監視・Policy Engine・PHY・停止診断を用いてPD送信/GoodCRC停止、停止原因保全、物理CC再接続での再交渉を検証。既存ホスト回帰15系統、Clang UBSan、M13d Python 12ケースもPASS。**本番FWの変更なし、実機での故障注入は未実施**。
 - [ ] Source起因Hard Resetの実機復旧、2回目Hard Reset、ADC故障注入、各種タイムアウトの実機評価。CC1/CC2の正常系と2機種でのPPS維持はM13bで確認済み。
 
 ### 未検証・未実装
@@ -174,7 +175,7 @@
 | **済（M3完了）** | `14_encoder_ec11` | PA4/PA5のEC11 A/Bで右/左5クリックずつ、PA6押下/PA7戻る各3回検出。PD/PPS/INA226/OLED共存 | 21,016B Flash、1,284B RAM、Flash成功、GPIOイベントログ、OLED写真。長時間/高速操作は後続で追加評価 |
 | **済（M4-A基本機能合格）** | `15_oled_encoder_ui` | 監視画面、4件のPDO/APDO閲覧、電圧/要求電流編集・キャンセル・確認。プレビュー専用、実PPS変更は無効 | ホストテスト12種類合格。実機Build/Flash成功、操作画面写真、7.00V/1000mA維持を確認。10分UI連続操作は未実施 |
 | **済（M4-B基本機能合格）** | `16_oled_encoder_pps_control` | OLED/EC11からの実PPS APPLY、表示とINA226 BUS追従、既知の安全ガードを実機検証 | Build/Flash合格、FLASH25,228B・RAM1,564B、ホスト13種類、7.00→7.10→7.00VとREQ変更、対象ガード・30分安定・OLED写真/ログ。元計画の全項目を完了扱いしない |
-| **M7先行（M13c-1／M13c-2とも2充電器短時間実機済）** | `17_pd_spr_sink_rebuild` | CC/PHY/PD通信・PPS周期更新・VBUS低下・Hard Reset復旧を独立検証。M13bで通常運用向け刺激を停止 | UGREEN/ダイソーM13a-7 HRログ、M13b正常系2充電器実機ログ。M13c-1の2充電器短時間実機ログ。**M13c-2 Windows Build/Flash・2機種短時間実機PASS、連続試験は別途** |
+| **M7先行（M13c-1／M13c-2とも2充電器短時間実機済）** | `17_pd_spr_sink_rebuild` | CC/PHY/PD通信・PPS周期更新・VBUS低下・Hard Reset復旧を独立検証。M13bで通常運用向け刺激を停止 | UGREEN/ダイソーM13a-7 HRログ、M13b正常系2充電器実機ログ。M13c-1の2充電器短時間実機ログ。**M13c-2 Windows Build/Flash・2機種短時間実機PASS、M13eホスト故障注入8/8 PASS、連続試験は別途** |
 | 4 | `pc_control`（番号未定、旧仮称`17_pc_control`） | USB通信方式、コマンドAPI、Python制御、CSVログ、PC側とPD側の電源分離 | PC制御サンプル、通信仕様、ログ |
 | 5 | `18_firmware_update` | 独自ファームを書き込む方法、初期化、復旧用デバッグ端子、書き込み失敗時の復帰 | 書き込み／復旧手順と再現試験 |
 | **次段階（M7先行試験済み）** | `19_pps_stability_protection`（計画上・未作成） | 15Ω負荷・REQ 500/300mAの先行実測を引き継ぎ、接続時タイムアウト、互換性、短絡を含まない段階的な保護設計・負荷変動等を検証 | 2026-11-03の先行ログは合格。**M7全体の合格は未判定**。安全条件を定めて個別に評価 |
@@ -233,9 +234,9 @@
 | D11 | ソース公開範囲 | ファームウェア、回路図、BOM、Gerber、ライセンス | 未決定 |
 | D12 | 販売条件 | 初回ロット数、販売価格、サポート、発売日 | 未決定 |
 | D13 | Hard Reset後のSource能力差 | UGREEN 90551は固定5V/1Aへ、ダイソー GaN 20WはPPS 7V/1Aへ復帰。**Sourceが提示したPDO/APDOを尊重し、PPSを無理に要求しない** | **2機種実機観測済み**（一般化・製品仕様書裏付けは別） |
-| D14 | 通常運用版とベンチ版の分離 | M13a-7の試験用自動Hard Reset/Get_Source_CapはM13bでは無効。Source発Hard Resetに対し同一CC接続1回だけ保守的復旧 | **M13b 2機種正常系実機PASS。Source発HRはホストのみ** |
+| D14 | 通常運用版とベンチ版の分離 | M13a-7の試験用自動Hard Reset/Get_Source_CapはM13bでは無効。Source発Hard Resetに対し同一CC接続1回だけ保守的復旧 | **M13b 2機種正常系実機PASS。Source発HR実機は機材不足で保留** |
 | D15 | Hard Reset復旧時のADC閾値 | raw≤70が3点→raw 540～610が3点の保守閾値、10ms監視。近ゼロADC校正とUSB-IF規格適合性、電源保持は未確定 | **暫定、製品設計前に再評価** |
-| D16 | 長時間観測とADC/PE異常停止 | M13c-1で127件TRACEとは独立した累積統計を追加。ADC監視故障や通常PEタイムアウト時にPHYのTX/GoodCRCを停止し、CC再接続まで契約失効 | **ホスト検証PASS、2充電器の通常動作は実機短時間PASS。故障注入は未検証** |
+| D16 | 長時間観測とADC/PE異常停止 | M13c-1で127件TRACEとは独立した累積統計を追加。ADC監視故障や通常PEタイムアウト時にPHYのTX/GoodCRCを停止し、CC再接続まで契約失効 | **M13eで8ケースのホスト故障注入PASS、2充電器の通常動作は実機短時間PASS。実機故障注入は未実施** |
 | D17 | HR復旧ゲートBusyの上限と停止原因の記録 | M13c-2で20msの受信再開/コミット待ち上限（実験値）とセッション最初の停止理由スナップショットを追加。正常なケーブル抜去でもVBUS停止理由が残る | **ホストPASS、Windows Build/Flash・2機種正常PPS・切断診断の短時間実機PASS。Hard Reset復旧ゲート異常系は未検証** |
 
 決定時には、選択肢・決定内容・根拠・日付をこの表に反映する。必要なら `docs/` に詳細な設計判断記録（ADR）を追加する。
@@ -248,9 +249,10 @@
 - [x] **M13b正常系回帰**：UGREEN（CC2、PPS更新2回）→ダイソー（CC1、更新3回）、負荷なし・USB電力計なしで初回PPS 7V/1Aと5秒PPS更新、意図しない`code=19/20`不在を確認。
 - [x] **M13c-1ホスト側**：長時間用統計、ADC監視故障と通常PEタイムアウトのfail-closed、32bit時刻折り返しをテスト。M12～M13b回帰PASS。
 - [x] **M13c-2 Windows Build/Flash/heartbeatと2充電器の短時間通常系試験**：UGREEN 90551（CC2）とダイソー GaN 20W（CC1）で7V/1A PPS、周期更新、`PD17 STOP reason=1`・切断126ms前の停止記録を確認。
+- [x] **M13eホスト故障注入**：ADC EOC停止・開始失敗、PD待機タイムアウト・TX_FAILEDの8ケースでPE/PHY停止、GoodCRC抑止、診断とCC再接続後の復帰を検証。既存ホスト回帰とUBSanもPASS。**本番ソース変更なし／実機故障注入ではない**。
 - [ ] **M13c長時間安定試験（ユーザー判断で別途実施）**：短時間の累積統計・停止診断は確認済み。各充電器の数分～10分以上の連続PPS運転は保留。詳細TRACEは127件で溢れ得るため、独立累積統計とVBUS監視結果で判定。
-- [ ] **M13b Source発Hard Reset**：安全に発生させる実験条件を設計して実機評価する。保守的な1回/CCセッション制限、0V/5V、固定5V/PPS、失敗時停止、メッセージIDを確認。強制実験は準備前に行わない。
-- [x] **PD17 M13c-1までのGit保存**：`f1f3a66`（M13c-1まで）と`20981cb`（M13c-2）を`main`にコミットし、`origin/main`へPush完了（2026-11-07）。M13dの記録・検証スクリプトは次のコミット候補。既存16bの未コミット変更には触れない。
+- [ ] **M13b Source発Hard Reset（ユーザー判断で保留）**：M13dで試験計画・判定ツール準備済み。Source側機材がなく現在は実機試験を実施しない。
+- [x] **PD17 M13dまでのGit保存**：`f1f3a66`（M13c-1まで）、`20981cb`（M13c-2）、`b3d1768`（M13d計画・ログ判定）を`origin/main`へPush完了。既存16bの未コミット変更には触れない。
 
 - [x] 既知負荷をR010直列経路に接続し、5V・7V・9VでINA226の電圧・電流・電力を取得し、DMM・USB測定器と比較する。
 - [x] M1の電流・電力計測**機能**の成立を確認し、絶対精度・校正は製品基板で再評価すると決定する。
@@ -278,6 +280,7 @@
 
 | 日付 | 対象 | 結果・判断 | 次のアクション |
 | --- | --- | --- | --- |
+| 2026-11-08 | PD17 M13eソフトウェア故障注入 | `tests/test_m13e_fault_injection.c`で実モジュール（ADC監視・PE・PHY・停止診断・累積統計）＋ADC/USBPDモックを結合。EOC未到来3ms/ADC開始失敗、SourceCaps/Request/Accept/PS_RDY待機期限、PPS更新期限、TX_FAILEDの8ケースPASS。各ケースで契約失効・送信/GoodCRC停止・最初の停止理由記録・CC物理切断再接続後の正常再交渉を検証。既存回帰15系統、M13d Python 12/12、Clang UBSan PASS。**実機故障注入ではない・本番FW変更なし** | Source発HR実機・長時間運転はユーザー判断で保留。実機ADC故障は安全な治具ができるまで未実施。M13eテストとROADMAPをGitで保存 |
 | 2026-11-08 | PD17 M13d Source発Hard Reset試験準備 | Source発HR（Sink発HR・抜去と区別）の試験条件、T00～T05、STOP/TRACE/HR VBUSの期待ログ、観測ログの自動判定ツールを作成。合成ログテスト12件PASS。NXP旧デモはHR操作が文書化されるがOM13588生産終了、ST Source評価ボードは任意HR送信操作を追加・検証する必要あり。**実機Source発HR未実施、Sinkファーム変更なし** | 制御可能なSource評価環境を確保し、まずT00でSource側の実送信・VBUS遷移を単独確認。長時間運転は別途実施 |
 | 2026-11-07 | PD17 M13c-2 UGREEN/ダイソー短時間実機 | Windows/xPack Build/Flash/heartbeat PASS（FLASH38,320B・60.36%、RAM3,388B・16.54%）。UGREEN 90551 USB-C1：CC2、24.228秒、PPS7V/1A更新4/4、loop gap最大3ms、ADC校正7.042V/INA226 6.998V。ダイソー GaN20W：CC1、36.856秒、PPS7V/1A更新7/7、loop gap最大1ms、ADC校正7.015V/INA226 6.961V。両機種とも`PD17 STOP reason=1`、`detach_after_stop_ms=126`、`source_hr=0`、ADC異常0、TRACE/イベント欠落0。**正常切断に伴う`policy_faults=1`を含む。Source発HR、復旧ゲート20ms異常停止、故障注入の実機検証には該当しない** | M13c-2のソースとROADMAPをGitに保存。長時間試験は別途実施。Source発HRの安全な試験条件を設計 |
 | 2026-11-07 | PD17 M13c-2（ソース・ホスト、当時の状況） | 復旧中PHY Busyが続く場合のARM_RX/COMMIT待ち上限20msと、最初の停止原因をCC切断後に出力する`PD17 STOP`診断を追加。既存全ホストテスト・Clang UBSan PASS。**Windows Build/Flash、実機未検証** | まず充電器なしBuild→Flash→heartbeat。正常PPS短時間試験を1機種ずつ。Source発HRは強制しない |
@@ -346,7 +349,7 @@ git push
 - [`14_encoder_ec11/`](14_encoder_ec11/)：**M3実機で入力4操作と既存機能共存を検証済み**。
 - [`15_oled_encoder_ui/`](15_oled_encoder_ui/)：**M4-A実機基本操作検証済み**のUIプレビュー版（実PPS要求変更は禁止）。
 - [`16_oled_encoder_pps_control/`](16_oled_encoder_pps_control/)：M4-B実PPS制御の**実機基本機能検証済み版**（PCホスト13種、Build/Flash、PPS APPLY・対象UIガード・30分無負荷安定）。未実施の異常系は別途管理。
-- [`17_pd_spr_sink_rebuild/`](17_pd_spr_sink_rebuild/)：M7先行の独立PD通信実験。M13a-7は2充電器Sink発HR実機確認、M13bは**2充電器通常PPS実機PASS**、M13c-1は**2充電器の短時間実機PASS**、M13c-2は**Windows Build/Flash・UGREEN/ダイソーの通常PPSと停止診断の短時間実機PASS**。Source発HR・異常停止の実機評価と連続運転試験は別途実施。`docs/M13B_NORMAL_SINK.md`、`docs/M13C_STABILITY_AND_FAIL_CLOSED.md`、`docs/M13C2_HR_GATE_AND_STOP_DIAG.md`、`docs/M13D_SOURCE_ORIGINATED_HARD_RESET_PLAN.md`参照。
+- [`17_pd_spr_sink_rebuild/`](17_pd_spr_sink_rebuild/)：M7先行の独立PD通信実験。M13a-7は2充電器Sink発HR実機確認、M13bは**2充電器通常PPS実機PASS**、M13c-1は**2充電器の短時間実機PASS**、M13c-2は**Windows Build/Flash・UGREEN/ダイソーの通常PPSと停止診断の短時間実機PASS**。M13eでは**ホスト故障注入8/8 PASS**（本番FW不変）。Source発HRの実機評価と連続運転試験はユーザー判断で保留。`docs/M13B_NORMAL_SINK.md`、`docs/M13C_STABILITY_AND_FAIL_CLOSED.md`、`docs/M13C2_HR_GATE_AND_STOP_DIAG.md`、`docs/M13D_SOURCE_ORIGINATED_HARD_RESET_PLAN.md`、`docs/M13E_HOST_FAULT_INJECTION.md`参照。
 - [`dev-workspace/`](dev-workspace/)：VS Codeワークスペース設定と開発用PowerShellスクリプトのGit管理用コピー。
 
 ---
