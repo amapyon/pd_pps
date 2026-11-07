@@ -12,6 +12,9 @@ typedef struct {
     bool early_rx_armed;
     bool completed;
     bool failed;
+    bool gate_waiting;
+    uint8_t blocked_gate;
+    uint32_t blocked_since_ms;
 } pd_hr_recovery_t;
 typedef enum {
     PD_HR_REC_NONE = 0, PD_HR_REC_ARM_RX,
@@ -28,4 +31,12 @@ void pd_hr_recovery_completed(pd_hr_recovery_t *r);
 void pd_hr_recovery_failed(pd_hr_recovery_t *r);
 /* Keep the one-shot boot latch but stop monitoring on physical detach. */
 void pd_hr_recovery_detached(pd_hr_recovery_t *r);
+/* A transient busy GoodCRC can delay a PHY transition. Retry for at most
+ * 20ms from the first refusal; an indefinitely busy gate is fail-closed.
+ * Returns true iff a refusal has exceeded the budget. */
+#define PD_HR_REC_GATE_TIMEOUT_MS 20u
+bool pd_hr_recovery_gate_busy(pd_hr_recovery_t *r,
+                              pd_hr_recovery_action_t action,
+                              uint32_t now_ms);
+void pd_hr_recovery_gate_ready(pd_hr_recovery_t *r);
 #endif

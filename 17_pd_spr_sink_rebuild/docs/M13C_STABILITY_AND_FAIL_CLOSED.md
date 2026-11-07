@@ -2,7 +2,7 @@
 
 **対象**：`17_pd_spr_sink_rebuild` / CH32X035 / M13b通常運用版への差分
 **日付**：2026-11-07
-**状態**：ホストテストPASS。Windows/xPack Build・実機テスト未実施。
+**状態**：ホストテストPASS。Windows/xPack Build/Flash PASS、UGREENとダイソーの短時間実機テストPASS。10分以上の連続運転は別途実施として保留。
 
 ## 目的
 
@@ -49,3 +49,11 @@ sh tests/run_m13c_host_test.sh
 - Source起因Hard Resetを安全に注入できる治具と試験条件。Sink発HRのみの実機成功をSource発HRの実機成功と混同しない。
 - ADC故障を実機で安全に注入するための方法。現状はホスト模擬のみ。
 - 規格全般、PPS経過時間と送信間隔、Power/Current制限、製品基板保護回路、PC/OLEDとの統合。
+
+## 2026-11-07 実機追記（M13c-1）
+
+- Windows Build/Flash/heartbeat：FLASH 36,752B（57.89%）、RAM 3,388B（16.54%）。
+- UGREEN 90551 USB-C1（CC2）：`session_ms=28214`、`ready_ms=27588`、`refresh_started=5`、`refresh_done=5`、`loop_gap_max_ms=3`、`adc_fault=0`、`event_lost_session=0`、VBUS消失検出は確定CC切断の124ms前。
+- ダイソー GaN 20W（CC1）：`session_ms=39272`、`ready_ms=38413`、`refresh_started=7`、`refresh_done=7`、`loop_gap_max_ms=1`、`adc_fault=0`、`event_lost_session=0`、VBUS消失検出は確定CC切断の122ms前。
+- 両機種ともPPS 7V/1A維持、異常Hard Reset受信なし。`pe_recovery=1`、`vbus_loss=1`、`policy_faults=1`は最後のケーブル抜去時の契約失効に対応。
+- **実機でのADC故障注入、Source発HR、真の長時間連続試験は未実施。長時間試験はユーザー希望により別途実施。**

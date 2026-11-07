@@ -8,6 +8,7 @@
 #include "adc_voltage.h"
 #include "pd_hr_recovery.h"
 #include "pd_stability.h"
+#include "pd_stop_diag.h"
 /* NORMAL MODE: no deliberate Hard Reset, no periodic Get_Source_Cap
  * stimulus, and no post-HR APDO re-probe. The Sink accepts the capabilities
  * actually offered by the Source on each negotiation/recovery. */
@@ -38,6 +39,8 @@ int main(void) {
     pd_hr_recovery_init(&m13b_recovery);
     pd_stability_t m13c_stats;
     pd_stability_init(&m13c_stats);
+    pd_stop_diag_t m13c2_stop;
+    pd_stop_diag_init(&m13c2_stop);
     for (;;) {
         uint32_t now=now_ms();
         phy_poll_cc(now);
@@ -56,6 +59,8 @@ int main(void) {
                Hard Reset wins even if it raced with this ADC decision. */
             if (phy_abort_for_vbus_loss(raw, adc_voltage_vbus_mv(raw))) {
                 pe_event(&policy, PE_EV_VBUS_LOST, NULL, now);
+                pd_stop_diag_note(&m13c2_stop, PD_STOP_VBUS_LOSS,
+                                  now, before, policy.state, raw);
                 pd_stability_event(&m13c_stats, PE_EV_VBUS_LOST, before, &policy);
                 phy_trace_note(PDTR_PE_EVENT, PE_EV_VBUS_LOST,
                                (uint16_t)before, (uint32_t)policy.state);
@@ -70,6 +75,9 @@ int main(void) {
             pe_state_t before = policy.state;
             if (phy_abort_for_adc_failure()) {
                 pe_event(&policy, PE_EV_SENSOR_FAULT, NULL, now);
+                pd_stop_diag_note(&m13c2_stop, PD_STOP_ADC_MONITOR,
+                                  now, before, policy.state,
+                                  (uint16_t)pd_vbus_monitor_timeouts());
                 pd_stability_event(&m13c_stats, PE_EV_SENSOR_FAULT,
                                    before, &policy);
                 phy_trace_note(PDTR_PE_EVENT, PE_EV_SENSOR_FAULT,
@@ -87,18 +95,25 @@ int main(void) {
                                     policy.faults);
             pe_event(&policy,ev,ev==PE_EV_CAPS?&caps:0,now);
             if (ev != PE_EV_DETACH) pd_stability_event(&m13c_stats, ev, before, &policy);
+            if (ev != PE_EV_DETACH && ev != PE_EV_HARD_RESET_RX &&
+                before != PE_RECOVERY && policy.state == PE_RECOVERY)
+                pd_stop_diag_note(&m13c2_stop,
+                                  pd_stop_diag_pe_event_reason(ev),
+                                  now, before, policy.state, (uint16_t)ev);
             phy_trace_note(PDTR_PE_EVENT, (uint8_t)ev,
                            (uint16_t)before, (uint32_t)policy.state);
             if (ev==PE_EV_ATTACH) {
                 /* New physical CC session: allow at most one received Hard
                    Reset recovery on this cable attachment. */
                 pd_hr_recovery_new_session(&m13b_recovery);
+                pd_stop_diag_attach(&m13c2_stop, now);
                 pd_stability_attach(&m13c_stats, now,
                                     phy_trace_dropped(), phy_lost_events());
                 pd_vbus_monitor_attach(now);
                 sensor_detach_pending = false;
             }
             if (ev==PE_EV_HARD_RESET_RX) {
+                pd_stop_diag_rx_hr(&m13c2_stop);
                 /* Source-originated Hard Reset: invalidate the contract,
                    observe vSafe0V -> vSafe5V conservatively, then restart
                    the protocol once; a second HR on the same attachment
@@ -109,9 +124,12 @@ int main(void) {
                     /* A second Hard Reset is a terminal bench failure.
                        Do not create an unbounded Hard Reset loop. */
                     phy_hr_fail_stop();
+                    pd_stop_diag_note(&m13c2_stop, PD_STOP_HR_SECOND_RX,
+                                      now, before, policy.state, 2u);
                 }
             }
             if (ev==PE_EV_DETACH) {
+                pd_stop_diag_detach(&m13c2_stop, now);
                 pd_hr_recovery_detached(&m13b_recovery);
                 pd_vbus_monitor_detach(now);
                 /* The detached one-shot may not overlap an in-flight ADC
@@ -132,10 +150,24 @@ int main(void) {
             phy_attached(), phy_hard_reset_seen(),
             phy_hard_reset_tx_timed_out());
         if (hr_action == PD_HR_REC_ARM_RX) {
-            if (phy_hr_arm_rx()) pd_hr_recovery_armed(&m13b_recovery);
+            if (phy_hr_arm_rx()) {
+                pd_hr_recovery_gate_ready(&m13b_recovery);
+                pd_hr_recovery_armed(&m13b_recovery);
+            } else if (pd_hr_recovery_gate_busy(&m13b_recovery,
+                                                hr_action, now)) {
+                phy_hr_fail_stop();
+                pd_hr_recovery_failed(&m13b_recovery);
+                pd_stop_diag_note(&m13c2_stop, PD_STOP_HR_RX_ARM_TIMEOUT,
+                                  now, policy.state, policy.state, 0u);
+            }
         } else if (hr_action == PD_HR_REC_COMMIT) {
-            if (policy.state == PE_RECOVERY &&
-                phy_hr_complete_recovery()) {
+            if (policy.state != PE_RECOVERY) {
+                phy_hr_fail_stop();
+                pd_hr_recovery_failed(&m13b_recovery);
+                pd_stop_diag_note(&m13c2_stop, PD_STOP_HR_BAD_PE_STATE,
+                                  now, policy.state, policy.state, 0u);
+            } else if (phy_hr_complete_recovery()) {
+                pd_hr_recovery_gate_ready(&m13b_recovery);
                 pe_state_t before = policy.state;
                 pe_event(&policy, PE_EV_HR_VBUS_READY, NULL, now);
                 phy_trace_note(PDTR_PE_EVENT, PE_EV_HR_VBUS_READY,
@@ -146,11 +178,23 @@ int main(void) {
                 } else {
                     phy_hr_fail_stop();
                     pd_hr_recovery_failed(&m13b_recovery);
+                    pd_stop_diag_note(&m13c2_stop, PD_STOP_HR_BAD_PE_STATE,
+                                      now, before, policy.state, 1u);
                 }
+            } else if (pd_hr_recovery_gate_busy(&m13b_recovery,
+                                                hr_action, now)) {
+                phy_hr_fail_stop();
+                pd_hr_recovery_failed(&m13b_recovery);
+                pd_stop_diag_note(&m13c2_stop, PD_STOP_HR_COMMIT_TIMEOUT,
+                                  now, policy.state, policy.state, 0u);
             }
         } else if (hr_action == PD_HR_REC_STOP) {
             phy_hr_fail_stop();
             pd_hr_recovery_failed(&m13b_recovery);
+            const pd_hr_vbus_t *hr = pd_vbus_monitor_hr_observation();
+            pd_stop_diag_note(&m13c2_stop, PD_STOP_HR_VBUS,
+                              now, policy.state, policy.state,
+                              (uint16_t)(((uint16_t)hr->state << 8) | hr->error));
         }
         pe_state_t state_before_tick = policy.state;
         bool was_pps_ready = state_before_tick == PE_READY &&
@@ -158,9 +202,13 @@ int main(void) {
         pe_tick(&policy,now);
         if (was_pps_ready && policy.state == PE_WAIT_ACCEPT)
             pd_stability_refresh_started(&m13c_stats);
-        if (state_before_tick != PE_RECOVERY && policy.state == PE_RECOVERY)
+        if (state_before_tick != PE_RECOVERY && policy.state == PE_RECOVERY) {
             pd_stability_event(&m13c_stats, PE_EV_TX_FAILED,
                                state_before_tick, &policy);
+            pd_stop_diag_note(&m13c2_stop,
+                              pd_stop_diag_pe_tick_reason(state_before_tick),
+                              now, state_before_tick, policy.state, 0u);
+        }
         /* A generic PE timeout (even without HR) must stop PHY acknowledgments
            and retransmissions. Only a fresh physical CC attach may clear it. */
         if (phy_attached() && policy.state == PE_RECOVERY &&
@@ -233,10 +281,6 @@ int main(void) {
                            journal entries have been recorded. */
                         m13c_stats.trace_drops_delta =
                             phy_trace_dropped() - m13c_stats.trace_drops_at_start;
-                        /* Re-read trace overflow after detached-only PE
-                           journal entries have been recorded. */
-                        m13c_stats.trace_drops_delta =
-                            phy_trace_dropped() - m13c_stats.trace_drops_at_start;
                         printf("PD17 STABILITY session_ms=%lu ready_ms=%lu loop_gap_max_ms=%lu caps=%lu requests=%lu pps_ready=%lu fixed_ready=%lu refresh_started=%lu refresh_done=%lu\n",
                                (unsigned long)m13c_stats.elapsed_ms,
                                (unsigned long)m13c_stats.ready_ms,
@@ -255,8 +299,17 @@ int main(void) {
                                (unsigned long)m13c_stats.faults_at_end,
                                (unsigned long)m13c_stats.trace_drops_delta,
                                (unsigned long)m13c_stats.lost_delta);
+                        printf("PD17 STOP reason=%u first_rel_attach_ms=%lu pe_before=%u pe_after=%u aux=%u hr_rx=%lu detach_seen=%u detach_after_stop_ms=%lu\n",
+                               (unsigned)m13c2_stop.reason,
+                               (unsigned long)m13c2_stop.stop_rel_ms,
+                               (unsigned)m13c2_stop.pe_before,
+                               (unsigned)m13c2_stop.pe_after,
+                               (unsigned)m13c2_stop.aux,
+                               (unsigned long)m13c2_stop.hr_rx_count,
+                               (unsigned)m13c2_stop.detach_seen,
+                               (unsigned long)m13c2_stop.detach_after_stop_ms);
                         pd_sensors_report_detached();
-                        printf("PD17 MODE normal=1 bench_hr_tx=0 bench_get_caps=0 pps_reprobe=0 hr_rx_max_per_attach=1 m13c_stats=1 adc_fail_stop=1\n");
+                        printf("PD17 MODE normal=1 bench_hr_tx=0 bench_get_caps=0 pps_reprobe=0 hr_rx_max_per_attach=1 m13c_stats=1 adc_fail_stop=1 m13c2_stop_diag=1 hr_gate_budget_ms=20\n");
                         pd_vbus_monitor_report_begin();
                         trace_dump_finished = true;
                         break;

@@ -51,3 +51,23 @@ void pd_hr_recovery_detached(pd_hr_recovery_t *r) {
     r->early_rx_armed = false;
     r->completed = false;
 }
+
+void pd_hr_recovery_gate_ready(pd_hr_recovery_t *r) {
+    r->gate_waiting = false;
+    r->blocked_gate = 0u;
+    r->blocked_since_ms = 0u;
+}
+bool pd_hr_recovery_gate_busy(pd_hr_recovery_t *r,
+                              pd_hr_recovery_action_t action,
+                              uint32_t now_ms) {
+    if (!r->active || (action != PD_HR_REC_ARM_RX &&
+                       action != PD_HR_REC_COMMIT)) return true;
+    if (!r->gate_waiting || r->blocked_gate != (uint8_t)action) {
+        r->gate_waiting = true;
+        r->blocked_gate = (uint8_t)action;
+        r->blocked_since_ms = now_ms;
+    }
+    /* 32-bit unsigned delta, never compare absolute deadlines across wrap. */
+    return (uint32_t)(now_ms - r->blocked_since_ms) >=
+           PD_HR_REC_GATE_TIMEOUT_MS;
+}
