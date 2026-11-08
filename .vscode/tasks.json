@@ -10,7 +10,7 @@
         "-ExecutionPolicy", "Bypass",
         "-File", "${workspaceFolder}\\dev-workspace\\pd-pps.ps1",
         "-Action", "Build",
-        "-Project", "17_pd_spr_sink_rebuild"
+        "-Project", "firmware/experiments/17_pd_spr_sink_rebuild"
       ],
       "options": {
         "cwd": "${workspaceFolder}"
@@ -27,7 +27,7 @@
         "-ExecutionPolicy", "Bypass",
         "-File", "${workspaceFolder}\\dev-workspace\\pd-pps.ps1",
         "-Action", "Flash",
-        "-Project", "17_pd_spr_sink_rebuild"
+        "-Project", "firmware/experiments/17_pd_spr_sink_rebuild"
       ],
       "options": {
         "cwd": "${workspaceFolder}"

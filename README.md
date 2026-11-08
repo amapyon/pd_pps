@@ -41,10 +41,15 @@ C:\pj\pd_pps\                              # ワークスペース全体（Git�
         ├── .gitignore
         ├── .gitmodules
         ├── ch32fun\                      # Gitサブモジュール
-        ├── 01_led_blink\
-        ├── ...
-        ├── 10_pps_adc_calibrated\
-        ├── 11_pps_ina226_monitor\
+        ├── .vscode\                     # VS Codeタスク
+        ├── firmware\
+        │   ├── product\                # 製品向け統合版
+        │   └── experiments\            # 実験スナップショット
+        │       ├── 01_led_blink\
+        │       ├── ...
+        │       ├── 16b_source_caps_integrity\
+        │       └── 17_pd_spr_sink_rebuild\
+        ├── docs\                        # 仕様・設計資料
         └── dev-workspace\               # 開発環境設定のGit管理用コピー
             ├── capture-workspace.ps1
             ├── pd_pps.code-workspace
@@ -104,10 +109,10 @@ code .\pd_pps.code-workspace
 cd C:\pj\pd_pps
 
 # ビルドのみ
-.\pd-pps.ps1 -Action Build -Project 11_pps_ina226_monitor
+.\pd-pps.ps1 -Action Build -Project firmware/experiments/11_pps_ina226_monitor
 
 # ビルドして書き込み
-.\pd-pps.ps1 -Action Flash -Project 11_pps_ina226_monitor
+.\pd-pps.ps1 -Action Flash -Project firmware/experiments/11_pps_ina226_monitor
 
 # WCH-LinkE / MCUの確認
 .\pd-pps.ps1 -Action Probe
@@ -120,14 +125,14 @@ PowerShellの実行ポリシーにより直接実行できない場合：
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass `
-  -File .\pd-pps.ps1 -Action Build -Project 11_pps_ina226_monitor
+  -File .\pd-pps.ps1 -Action Build -Project firmware/experiments/11_pps_ina226_monitor
 ```
 
-`-Project`には`src/pd_pps`からの相対パスを指定します。入れ子の例は`07_pps_manual_voltage_echo/07_pps_manual_voltage`です。
+`-Project`には`src/pd_pps`からの相対パスを指定します。入れ子の例は`firmware/experiments/07_pps_manual_voltage_echo/07_pps_manual_voltage`です。
 
 ## 5. 実験プロジェクトの管理
 
-2026年11月1日の棚卸しでは、**Makefileを持つ実験プロジェクトが19個**検出されました。
+2026年11月1日の棚卸しでは、**Makefileを持つ実験プロジェクトが19個**検出されました（当時の記録）。2026年11月8日現在、実験スナップショット25フォルダーを`firmware/experiments`に配置しています。
 
 | 系列 | 内容 |
 |---|---|
@@ -141,7 +146,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 
 ### 新しい実験を追加する手順
 
-1. `src/pd_pps`に`12_内容`、`13_内容`のような番号付きフォルダーを作成する。
+1. `src/pd_pps/firmware/experiments`に`NN_内容`の形式で番号付きフォルダーを作成する。
 2. 近い実験のソース、ヘッダー、Makefileをコピーする。`TARGET`、依存ファイル、配線を確認し、ビルド生成物は引き継がない。
 3. 実験フォルダーのREADMEに目的・配線・実行手順・測定条件と結果を記録する。
 4. 実行用の`organize-pdpps-workspace.ps1`でVS Codeの選択肢を更新する。
@@ -253,7 +258,7 @@ Copy-Item (Join-Path $repo 'dev-workspace\.vscode\settings.json') `
 ```powershell
 cd C:\pj\pd_pps
 .\pd-pps.ps1 -Action Probe
-.\pd-pps.ps1 -Action Build -Project 11_pps_ina226_monitor
+.\pd-pps.ps1 -Action Build -Project firmware/experiments/11_pps_ina226_monitor
 code .\pd_pps.code-workspace
 ```
 
