@@ -422,3 +422,14 @@ Windows 11／Linux向けにPython＋シリアルライブラリを使ったCLI�
 ---
 
 **次の開発着手条件：M5-Aの外部3.3V給電経路と非逆流、USB試作配線の非短絡を確認した後、PD充電器を接続しない状態でWindows 11のCDC-ACM列挙／エコーを試す。**
+
+## M5 USB CDC-ACM 実機確認（2026-11-08 追記）
+<!-- M5_USB_CDC_ACM_STATUS_2026-11-08 -->
+
+M5の**USB CDC-ACM基本通信**について、実験18（`firmware/experiments/18_usb_cdc_acm_echo`）で実機確認した。
+Windows 11で仮想COMポート（検証時COM9、`VID_1209&PID_D035`）として列挙され、COMオープン後に37バイトのエコーバックが完全一致した。
+BuildとWCH-LinkE/minichlinkによるFlashの成功記録もある。
+
+**M5全体が完了したわけではない。** 連続送受信・再接続、コマンド通信、計測/PD/PPSとの統合、USBデータ線の分離、PC側VBUS検出は未実施。
+詳細: [M5 USB CDC-ACM基本通信 検証記録](M5_USB_CDC_ACM_VERIFICATION.md)。
+この追記は従来のM5設計／未着手時点の記述より新しい進捗記録として扱う。
