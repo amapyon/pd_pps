@@ -4,7 +4,7 @@
 # VS Code workspace maintenance for PD PPS experiments.
 #
 # Inspect: Read-only inventory.
-# Apply:   Backup and update the VS Code workspace file.
+# Apply:   Backup and update repo .vscode/tasks.json (or an explicitly specified workspace file).
 #
 # Never moves/deletes source files, builds firmware, or flashes the MCU.
 
@@ -80,7 +80,8 @@ $repo = Join-Path $Root 'src\pd_pps'
 $helper = Join-Path $repo 'dev-workspace\pd-pps.ps1'
 
 if ([string]::IsNullOrWhiteSpace($WorkspaceFile)) {
-    $WorkspaceFile = Join-Path $Root 'pd_pps.code-workspace'
+    # The repository-local tasks.json is the maintained, self-contained default.
+    $WorkspaceFile = Join-Path $repo '.vscode\tasks.json'
 }
 
 $WorkspaceFile = [System.IO.Path]::GetFullPath(
@@ -96,17 +97,21 @@ if (-not (Test-Path -LiteralPath $WorkspaceFile -PathType Leaf)) {
 }
 
 # --------------------------------------------------
-# 2. Discover experiment projects
-#    Only top-level NN_* directories are included.
-#    Nested experiments are supported.
-#    ch32fun examples are not included.
+# 2. Discover experiments beneath firmware/experiments only.
+#    Nested projects (e.g. 07_*/*/Makefile) are supported.
+#    ch32fun examples and unrelated Makefiles are excluded.
 # --------------------------------------------------
+
+$experimentsRoot = Join-Path $repo 'firmware\experiments'
+if (-not (Test-Path -LiteralPath $experimentsRoot -PathType Container)) {
+    throw "Experiments directory not found: $experimentsRoot"
+}
 
 $repoPrefix = $repo.TrimEnd('\', '/') + '\'
 
 $projects = @(
     foreach ($dir in (
-        Get-ChildItem -LiteralPath $repo -Directory |
+        Get-ChildItem -LiteralPath $experimentsRoot -Directory |
         Where-Object { $_.Name -match '^[0-9]{2}[A-Za-z]?_' }
     )) {
         Get-ChildItem `
@@ -140,28 +145,41 @@ try {
     )
 
     $config = $original | ConvertFrom-Json
+    # Compare canonical JSON so Apply is a no-op when only formatting differs.
+    $originalCanonical = $config | ConvertTo-Json -Depth 100
 }
 catch {
     throw "Cannot parse workspace JSON. No changes made. $($_.Exception.Message)"
 }
 
-$matchingFolders = @(
-    $config.folders | Where-Object {
-        $_.name -eq 'pd_pps' -and
-        ($_.path -replace '\\', '/') -eq 'src/pd_pps'
-    }
+# .code-workspace files embed tasks under .tasks; .vscode/tasks.json
+# has .tasks and .inputs directly at the document root.
+$isWorkspace = $WorkspaceFile.EndsWith(
+    '.code-workspace', [System.StringComparison]::OrdinalIgnoreCase
 )
 
-if ($matchingFolders.Count -ne 1) {
-    throw 'Workspace folder layout differs from expected src/pd_pps. No changes made.'
+if ($isWorkspace) {
+    $matchingFolders = @(
+        $config.folders | Where-Object {
+            $_.name -eq 'pd_pps' -and
+            ($_.path -replace '\\', '/') -eq 'src/pd_pps'
+        }
+    )
+    if ($matchingFolders.Count -ne 1) {
+        throw 'Workspace folder layout differs from expected src/pd_pps. No changes made.'
+    }
+    $taskConfig = $config.tasks
+}
+else {
+    $taskConfig = $config
 }
 
-if ($null -eq $config.tasks) {
-    throw 'Workspace tasks not found. No changes made.'
+if ($null -eq $taskConfig -or $null -eq $taskConfig.tasks) {
+    throw 'VS Code tasks not found. No changes made.'
 }
 
 $projectInputs = @(
-    $config.tasks.inputs |
+    $taskConfig.inputs |
     Where-Object { $_.id -eq 'pdppsProject' }
 )
 
@@ -219,7 +237,7 @@ foreach ($item in $obsolete) {
 
 Write-Host ''
 Write-Host 'Registered VS Code tasks:'
-foreach ($task in @($config.tasks.tasks)) {
+foreach ($task in @($taskConfig.tasks)) {
     Write-Host "  $($task.label)"
 }
 
@@ -252,8 +270,13 @@ if (-not (Test-Path -LiteralPath $helper -PathType Leaf)) {
 }
 
 if ([string]::IsNullOrWhiteSpace($DefaultProject)) {
-    # Choose the newest numbered experiment as initial selection.
-    $DefaultProject = $projects[-1]
+    # Preserve an existing valid default; otherwise select the newest experiment.
+    if ($projectInput.default -in $projects) {
+        $DefaultProject = $projectInput.default
+    }
+    else {
+        $DefaultProject = $projects[-1]
+    }
 }
 
 if ($DefaultProject -notin $projects) {
@@ -268,9 +291,11 @@ Set-JsonProperty $projectInput 'options' $projects
 Set-JsonProperty $projectInput 'default' $DefaultProject
 
 # --------------------------------------------------
-# 7. Improve workspace visibility
+# 7. Improve visibility only for legacy multi-root .code-workspace files.
+#    A repository-local tasks.json cannot contain VS Code settings.
 # --------------------------------------------------
 
+if ($isWorkspace) {
 if ($null -eq $config.settings) {
     Set-JsonProperty `
         $config `
@@ -305,6 +330,8 @@ Add-ExcludePatterns `
     'search.exclude' `
     $searchPatterns
 
+}
+
 # Preserve existing tasks, commands, folder paths,
 # and other workspace settings.
 
@@ -314,7 +341,7 @@ Add-ExcludePatterns `
 
 $newJson = $config | ConvertTo-Json -Depth 100
 
-if ($original.Trim() -ceq $newJson.Trim()) {
+if ($originalCanonical.Trim() -ceq $newJson.Trim()) {
     Write-Host ''
     Write-Host 'No workspace changes are necessary.'
     return

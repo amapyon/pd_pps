@@ -1,4 +1,4 @@
-﻿{
+{
   "version": "2.0.0",
   "tasks": [
     {
@@ -7,10 +7,14 @@
       "command": "powershell.exe",
       "args": [
         "-NoProfile",
-        "-ExecutionPolicy", "Bypass",
-        "-File", "${workspaceFolder}\\dev-workspace\\pd-pps.ps1",
-        "-Action", "Build",
-        "-Project", "firmware/experiments/17_pd_spr_sink_rebuild"
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\dev-workspace\\pd-pps.ps1",
+        "-Action",
+        "Build",
+        "-Project",
+        "firmware/experiments/17_pd_spr_sink_rebuild"
       ],
       "options": {
         "cwd": "${workspaceFolder}"
@@ -24,10 +28,14 @@
       "command": "powershell.exe",
       "args": [
         "-NoProfile",
-        "-ExecutionPolicy", "Bypass",
-        "-File", "${workspaceFolder}\\dev-workspace\\pd-pps.ps1",
-        "-Action", "Flash",
-        "-Project", "firmware/experiments/17_pd_spr_sink_rebuild"
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\dev-workspace\\pd-pps.ps1",
+        "-Action",
+        "Flash",
+        "-Project",
+        "firmware/experiments/17_pd_spr_sink_rebuild"
       ],
       "options": {
         "cwd": "${workspaceFolder}"
@@ -40,9 +48,12 @@
       "command": "powershell.exe",
       "args": [
         "-NoProfile",
-        "-ExecutionPolicy", "Bypass",
-        "-File", "${workspaceFolder}\\dev-workspace\\pd-pps.ps1",
-        "-Action", "Log"
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\dev-workspace\\pd-pps.ps1",
+        "-Action",
+        "Log"
       ],
       "options": {
         "cwd": "${workspaceFolder}"
@@ -52,6 +63,122 @@
         "reveal": "always",
         "panel": "dedicated"
       }
+    },
+    {
+      "label": "PD PPS: Build (select project)",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\dev-workspace\\pd-pps.ps1",
+        "-Action",
+        "Build",
+        "-Project",
+        "${input:pdppsProject}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "group": "build"
+    },
+    {
+      "label": "PD PPS: Build and flash (select project)",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\dev-workspace\\pd-pps.ps1",
+        "-Action",
+        "Flash",
+        "-Project",
+        "${input:pdppsProject}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "PD PPS: Check WCH-LinkE",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\dev-workspace\\pd-pps.ps1",
+        "-Action",
+        "Probe"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "PD PPS: Debug log (minichlink -T)",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\dev-workspace\\pd-pps.ps1",
+        "-Action",
+        "Log"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    }
+  ],
+  "inputs": [
+    {
+      "id": "pdppsProject",
+      "type": "pickString",
+      "description": "Select experiment to Build / Flash",
+      "options": [
+        "firmware/experiments/01_led_blink",
+        "firmware/experiments/02_pd_5v",
+        "firmware/experiments/03_pd_9v",
+        "firmware/experiments/04_pps_6v",
+        "firmware/experiments/05_pps_sweep",
+        "firmware/experiments/06_pps_current_limit",
+        "firmware/experiments/07_pps_manual_voltage",
+        "firmware/experiments/07_pps_manual_voltage_2",
+        "firmware/experiments/07_pps_manual_voltage_echo/07_pps_manual_voltage",
+        "firmware/experiments/07_pps_manual_voltage_reconnect",
+        "firmware/experiments/07_pps_manual_voltage_reconnect_v2",
+        "firmware/experiments/07_pps_manual_voltage_reconnect_v3",
+        "firmware/experiments/08_pps_manual_voltage_current_reconnect_v1",
+        "firmware/experiments/08_pps_manual_voltage_current_reconnect_v2",
+        "firmware/experiments/09_adc_standalone",
+        "firmware/experiments/09_adc_vbus_monitor",
+        "firmware/experiments/09_pps_adc_voltage",
+        "firmware/experiments/10_pps_adc_calibrated",
+        "firmware/experiments/11_pps_ina226_monitor",
+        "firmware/experiments/13_oled_ssd1306",
+        "firmware/experiments/14_encoder_ec11",
+        "firmware/experiments/15_oled_encoder_ui",
+        "firmware/experiments/16_oled_encoder_pps_control",
+        "firmware/experiments/16b_source_caps_integrity",
+        "firmware/experiments/17_pd_spr_sink_rebuild"
+      ],
+      "default": "firmware/experiments/17_pd_spr_sink_rebuild"
     }
   ]
 }

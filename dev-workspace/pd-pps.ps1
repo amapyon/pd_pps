@@ -1,5 +1,6 @@
 # PD PPS - VS Code task helper for native Windows PowerShell 5.1.
-# This file belongs at C:\pj\pd_pps\pd-pps.ps1 (outside the Git repository).
+# Run this tracked copy from src\pd_pps\dev-workspace\pd-pps.ps1.
+# Tool paths are resolved from C:\pj\pd_pps (three levels above this file).
 # No persistent PATH, registry, npm, driver, or repository configuration changes.
 
 [CmdletBinding()]
