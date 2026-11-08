@@ -5,7 +5,7 @@ TARGET := pps_current_limit
 TARGET_MCU := CH32X035
 TARGET_MCU_PACKAGE := CH32X035F8U6
 
-CH32FUN := ../ch32fun/ch32fun
+CH32FUN := ../../../ch32fun/ch32fun
 include $(CH32FUN)/ch32fun.mk
 
 flash: cv_flash
