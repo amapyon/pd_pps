@@ -4,7 +4,7 @@ TARGET := pps_oled_encoder_pps_control
 ADDITIONAL_C_FILES := adc_voltage.c adc_calibration.c ina226.c m2_bus_adapter.c m2_ssd1306.c m2_dashboard.c m3_input.c m3_gpio.c m4_ui.c m4_screen.c m4_apply_guard.c
 TARGET_MCU := CH32X035
 TARGET_MCU_PACKAGE := CH32X035F8U6
-CH32FUN := ../ch32fun/ch32fun
+CH32FUN := ../../../ch32fun/ch32fun
 -include $(CH32FUN)/ch32fun.mk
 flash: cv_flash
 clean: cv_clean
