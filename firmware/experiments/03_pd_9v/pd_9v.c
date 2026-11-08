@@ -17,7 +17,7 @@
 #include <stdio.h>
 
 #define USBPD_IMPLEMENTATION
-#include "../ch32fun/examples_x035/usbpd_sink/usbpd.h"
+#include "../../../ch32fun/examples_x035/usbpd_sink/usbpd.h"
 
 #define LED_PIN             PB12
 #define LED_ON              FUN_HIGH
