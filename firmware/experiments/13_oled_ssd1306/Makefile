@@ -1,10 +1,10 @@
 # v3-derived: manual PPS voltage AND current, with reconnect support.
 all: build
-TARGET := pps_oled_encoder_ui
-ADDITIONAL_C_FILES := adc_voltage.c adc_calibration.c ina226.c m2_bus_adapter.c m2_ssd1306.c m2_dashboard.c m3_input.c m3_gpio.c m4_ui.c m4_screen.c
+TARGET := pps_oled_ssd1306
+ADDITIONAL_C_FILES := adc_voltage.c adc_calibration.c ina226.c m2_bus_adapter.c m2_ssd1306.c m2_dashboard.c
 TARGET_MCU := CH32X035
 TARGET_MCU_PACKAGE := CH32X035F8U6
-CH32FUN := ../ch32fun/ch32fun
+CH32FUN := ../../../ch32fun/ch32fun
 -include $(CH32FUN)/ch32fun.mk
 flash: cv_flash
 clean: cv_clean
@@ -43,15 +43,3 @@ test:
 	cc -std=c11 -Wall -Wextra -Werror -pedantic -O2 -I. -o /tmp/test_m2_oled_bus tests/test_oled_bus.c m2_bus_adapter.c
 	/tmp/test_m2_oled_bus
 	$(RM) /tmp/test_m2_oled_bus
-
-	cc -std=c11 -Wall -Wextra -Werror -pedantic -O2 -I. -o /tmp/test_m3_input tests/test_m3_input.c m3_input.c
-	/tmp/test_m3_input
-	$(RM) /tmp/test_m3_input
-
-	cc -std=c11 -Wall -Wextra -Werror -pedantic -O2 -I. -o /tmp/test_m4_ui tests/test_m4_ui.c m4_ui.c
-	/tmp/test_m4_ui
-	$(RM) /tmp/test_m4_ui
-
-	cc -std=c11 -Wall -Wextra -Werror -pedantic -O2 -I. -o /tmp/test_m4_screen tests/test_m4_screen.c m4_screen.c m4_ui.c m2_ssd1306.c
-	/tmp/test_m4_screen
-	$(RM) /tmp/test_m4_screen
