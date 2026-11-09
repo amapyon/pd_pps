@@ -445,3 +445,12 @@ BuildとWCH-LinkE/minichlinkによるFlashの成功記録もある。
 **留保:** 診断版での成功は、過去のEP3送信停止の根本原因解決や製品適合性の証明ではない。診断の有無によるタイミング差、長時間耐久、USB再接続、PD/PPS同時動作、PC側VBUS検出とJ1共通D+/D−問題は未検証・未解決。
 詳細: [M5 USB CDC-ACM検証記録](M5_USB_CDC_ACM_VERIFICATION.md) 第9節。
 この節は2026-11-08時点のM5進捗の**後続更新**として扱う。
+
+## M6 USB CDC-ACMコマンド通信の実機検証（2026-11-09追記）
+<!-- M6_USB_CDC_COMMANDS_VERIFIED_2026-11-09 -->
+
+実験19のM6ファームウェアで、Windows 11のCOM9から`INFO`・`STATUS`・`PING`・`HELP`、未知コマンド・行長超過の応答を確認した。BuildとFlash、20回連続PINGを含むコマンドテストはPASS。
+**USBケーブルを抜き差しせず同一スクリプトを10回連続実行し、10回すべてPASS。** 合計260コマンド要求（うちPING 210回）。`rx_overflows=0`が全10回継続した。
+`STATUS errors`は毎回2増加したが、これは各回の意図的な不正コマンド2件を数えたものであり、USB通信エラー数ではない。
+M6にはPD/PPS設定や計測値取得機能はまだ実装していない。長時間耐久、再接続、過負荷、USB配線の同時接続条件は未検証。
+詳細: [M6 USB CDC-ACMコマンド通信 実機検証記録](M6_USB_CDC_COMMANDS_VERIFICATION.md)。
