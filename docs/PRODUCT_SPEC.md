@@ -454,3 +454,13 @@ BuildとWCH-LinkE/minichlinkによるFlashの成功記録もある。
 `STATUS errors`は毎回2増加したが、これは各回の意図的な不正コマンド2件を数えたものであり、USB通信エラー数ではない。
 M6にはPD/PPS設定や計測値取得機能はまだ実装していない。長時間耐久、再接続、過負荷、USB配線の同時接続条件は未検証。
 詳細: [M6 USB CDC-ACMコマンド通信 実機検証記録](M6_USB_CDC_COMMANDS_VERIFICATION.md)。
+
+## M7 USB CDC計測コマンド通信の実機検証（2026-11-09追記）
+<!-- M7_MEASURE_PROTOCOL_VERIFIED_2026-11-09 -->
+
+実験20のM7でWindows 11のCOM9経由の`INFO`、`STATUS`、`MEASURE`、`PING`、`HELP`、未知コマンドと長いコマンドへの応答がすべてPASS。`INFO`の識別子は`m7_usb_cdc_measure protocol=2`。
+**USBケーブルを抜き差ししない10回連続試験で10/10 PASS**。合計370コマンド要求、PING 210回、MEASURE 110回（いずれも各回の基本確認を含む）。応答不一致・タイムアウトはログ上0件、`rx_overflows=0`。
+`STATUS errors`は意図した不正コマンドの拒否で増加したものであり、USB転送エラー件数ではない。
+`MEASURE`はセンサー未設定のため`status=unavailable reason=not_configured voltage_mV=NA current_mA=NA`を返す。物理的な電圧・電流測定はまだ未実装。
+M7の独立したBuild/Flashログはこの検証記録に含まない。USB再接続・長時間耐久・PD/PPS統合・実センサーの配線と校正は未検証。
+詳細: [M7 USB CDC計測コマンド 実機検証記録](M7_USB_CDC_MEASURE_VERIFICATION.md)。
