@@ -7,14 +7,26 @@
 #include "../m5_usb_cdc_echo.c"
 
 static uint8_t result[1024];
+static uint8_t ep3_dma_buffer[64];
 static unsigned result_size;
 static int busy_once;
-int USBFS_SendEndpointNEW(int endpoint, uint8_t *data, int len, int copy)
+static int reject_once;
+static unsigned usb_packets;
+static unsigned max_usb_tx_len;
+uint8_t *USBFS_GetEPBufferIfAvailable(int endpoint)
 {
-    if (busy_once) { busy_once = 0; return -1; }
-    if (endpoint != 3 || copy != 1 || len > 64) abort();
+    if (endpoint != 3) abort();
+    if (busy_once) { busy_once = 0; return NULL; }
+    return ep3_dma_buffer;
+}
+int USBFS_SendEndpoint(int endpoint, int len)
+{
+    if (endpoint != 3 || len < 1 || len > 63) abort();
+    if (reject_once) { reject_once = 0; return -1; }
+    ++usb_packets;
+    if ((unsigned)len > max_usb_tx_len) max_usb_tx_len = (unsigned)len;
     if (result_size + (unsigned)len > sizeof(result)) abort();
-    memcpy(result + result_size, data, (size_t)len);
+    memcpy(result + result_size, ep3_dma_buffer, (size_t)len);
     result_size += (unsigned)len;
     return 0;
 }
@@ -33,11 +45,47 @@ int main(void)
     busy_once=1;
     M5_ServiceUsbEcho();
     require(result_size==0, "busy endpoint must not consume bytes");
+    reject_once = 1;
+    M5_ServiceUsbEcho();
+    require(result_size==0, "rejected send must not consume bytes");
     for (int i=0; i<4; ++i) M5_ServiceUsbEcho();
     require(result_size==150, "150 bytes must be returned");
     require(memcmp(result,p,150)==0, "binary echo must be identical");
     require(rx_overflows==0, "no overflow under normal flow");
     require(rx_read_idx==rx_write_idx, "RX queue empty after send");
+
+    /* USB bulk maximum-packet boundary tests. OUT can deliver 64 bytes,
+     * but every IN transfer must use a short packet to avoid pending reads
+     * in Windows usbser.sys (the firmware does not generate ZLPs).
+     */
+    const unsigned lengths[] = {1, 7, 31, 63, 64, 65, 127, 128};
+    for (unsigned test = 0; test < sizeof(lengths)/sizeof(lengths[0]); ++test) {
+        unsigned length = lengths[test];
+        uint8_t input[128];
+        for (unsigned i = 0; i < length; ++i) input[i] = (uint8_t)(i * 29u + length);
+        rx_read_idx = rx_write_idx = 0;
+        rx_overflows = 0;
+        result_size = 0;
+        usb_packets = 0;
+        max_usb_tx_len = 0;
+        busy_once = 0;
+        reject_once = 0;
+        for (unsigned pos = 0; pos < length;) {
+            unsigned n = length - pos;
+            if (n > 64) n = 64;
+            HandleDataOut(&s, CDC_OUT_EP, input + pos, (int)n);
+            pos += n;
+        }
+        for (unsigned spin = 0; spin < 10 && rx_read_idx != rx_write_idx; ++spin)
+            M5_ServiceUsbEcho();
+        require(result_size == length, "bulk boundary length mismatch");
+        require(memcmp(result, input, length) == 0,
+                "bulk boundary payload mismatch");
+        require(rx_read_idx == rx_write_idx, "bulk boundary did not drain");
+        require(usb_packets > 0 && max_usb_tx_len < 64,
+                "USB IN must send only short packets (<64 bytes)");
+        require(rx_overflows == 0, "bulk boundary RX overflow");
+    }
 
     /* The fsusb.c handler contract: >0=data, 0=STALL, <0=ZLP ACK. */
     s.USBFS_SetupReqType = 0xA1; /* class/interface IN */
@@ -89,6 +137,25 @@ int main(void)
     require(rx_overflows>0, "overflow should be counted");
     for (int i=0; i<10; ++i) M5_ServiceUsbEcho();
     require(rx_read_idx==rx_write_idx, "drain queue after overflow");
-    puts("PASS: host echo / USB busy / CDC controls / overflow");
+    require(m5_usb_diag.rx_ep2_packets > 0u &&
+            m5_usb_diag.rx_ep2_bytes > 0u,
+            "diagnostic EP2 RX counters");
+    require(m5_usb_diag.tx_attempts ==
+            m5_usb_diag.tx_accepted + m5_usb_diag.tx_rejected,
+            "diagnostic TX attempt accounting");
+    require(m5_usb_diag.tx_accepted > 0u &&
+            m5_usb_diag.tx_bytes_accepted > 0u,
+            "diagnostic TX acceptance counters");
+    require(m5_usb_diag.tx_reject_minus1 > 0u,
+            "diagnostic rejected TX classification");
+    require(m5_usb_diag.tx_last_len <= ECHO_TX_CHUNK_SIZE,
+            "diagnostic last TX length");
+    require(m5_usb_diag.ep3_busy_polls > 0u,
+            "diagnostic busy poll counter");
+    unsigned in_before = m5_usb_diag.ep3_in_completed;
+    HandleInRequest(&s, CDC_IN_EP, NULL, 0);
+    require(m5_usb_diag.ep3_in_completed == in_before + 1u,
+            "diagnostic IN-complete IRQ counter");
+    puts("PASS: host echo / USB busy / CDC controls / overflow / diagnostic counters");
     return 0;
 }
