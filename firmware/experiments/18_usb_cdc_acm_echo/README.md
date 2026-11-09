@@ -10,6 +10,8 @@
 
 詳細な検証記録: [`docs/M5_USB_CDC_ACM_VERIFICATION.md`](../../../docs/M5_USB_CDC_ACM_VERIFICATION.md)
 
+> **最新の配線参照先：** [`docs/HARDWARE_WIRING.md`](../../../docs/HARDWARE_WIRING.md) 第3・5節。CoreBoard J1とTP1/TP2のD+/D−共有、PC側VBUS未使用、自己給電構成の製品化前課題を集約している。実験18の配線表は当時の試作記録として残す。
+
 ## 配線・電源
 
 | PC側追加USB-C基板 | CoreBoard |

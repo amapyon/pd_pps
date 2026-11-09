@@ -4,17 +4,29 @@
 |---|---|
 | 文書ID | PD-PPS-PRODUCT-SPEC-001 |
 | 版 | **v0.1 — 開発中／製品仕様案** |
-| 更新日 | 2026-11-08 |
+| 更新日 | 2026-11-09 |
 | 製品名 | **PD/PPS Explorer（仮称）** |
 | 対象 | USB PD/PPSの能力確認・設定・測定を行うスタンドアロン／PC連携装置 |
 | 開発基盤 | CH32X035、WeActStudio CH32X035 CoreBoard V1.0（評価ボード） |
-| 現在の進捗 | M0～M3の基本機能完了、M4とM7は進行中、M5は通信方式と試作設計を策定済み・実装未着手 |
+| 現在の進捗 | 実験18(M5) CDCエコー、19(M6)コマンド、20(M7)計測プロトコル、21(M8) INA226取得を実機で確認。**製品統合と計測精度検証は未完了** |
 | PD通信コードの保存基準 | `17_pd_spr_sink_rebuild` M13g、Git `bcd0c0d`（2026-11-08 GitHub `main`同期確認） |
-| 関連文書 | `ROADMAP.md`、`M5_PC_USB_CDC_ACM_仕様_v0.1.md`、PD17 M13f/M13g検証記録 |
+| 関連文書 | `docs/HARDWARE_WIRING.md`（回路・配線の基準）、`docs/M8_USB_CDC_INA226_VERIFICATION.md`（M8実測記録）、`ROADMAP.md`、その他M5～M7実機検証記録 |
 
 > **本書の役割**：個別の実験仕様ではなく、開発中の**製品全体**の目的、ユーザー機能、ハードウェア／ソフトウェア構成、PCインターフェース、安全要求、検証ゲートを一元管理する。`ROADMAP.md`は進捗履歴、M5個別仕様はUSB CDCの実装詳細として位置付ける。
 >
 > **重要**：本書には開発済みの機能と、将来の製品要求が混在する。現行の評価機で動くことは、量産品の性能・安全・USB/PD規格適合を保証しない。
+
+## 2026-11-09追補：評価機の回路・配線とM5～M8進捗
+
+評価機の固定ネット、INA226高側シャント、I²C・USB CDC用の外付け配線、禁止する同時接続と未確認事項は、**[`HARDWARE_WIRING.md`](HARDWARE_WIRING.md)** を唯一の配線リファレンスとする。新しい計測配線を追加した際は同ファイルを先に更新する。
+
+- **【実証】実験18（M5）**：USBFS CDC-ACMのWindows 11 COM9認識、エコーバック。診断版の所定安定性試験PASS。
+- **【実証】実験19（M6）**：`INFO`、`STATUS`、`PING`などのコマンド通信と10回連続試験PASS。
+- **【実証】実験20（M7）**：`MEASURE`プロトコルを確認。センサーを持たないM7は`status=unavailable`を正しく返す。
+- **【実証】実験21（M8）**：INA226へのI²Cアクセス、Windows 11 COM9から`MEASURE status=ok voltage_mV=49 current_mA=0`を確認。FLASH 5,476B／RAM 1,000BのBuild PASS。**測定精度は未検証**。
+- **【試作限定】** PC用追加USB-CとCoreBoard既存J1は**D+/D−を共有**。PC用USBを接続する試験ではJ1にPD電源を接続しない。PC側VBUS検出・電源保護・USBデータ配線の製品設計は未解決。
+
+**本追補は以下の章に残る古い進捗表現（「CDC未実装」等）より新しい事実を示す。** 製品全体のPCからのPD制御、PD/PPSとINA226/USBの同時動作、負荷保護、認証・校正を完了したことは意味しない。個別実験と製品全体のM番号は文脈を区別する。
 
 ## 0. 仕様の確定度と判断ルール
 
@@ -99,7 +111,7 @@ USB PD/PPS充電器
 | ID | インターフェース | 製品での役割 | 現状 |
 |---|---|---|---|
 | IF-01 | USB-C① PD/PPS電源入力 | SourceとCC通信、VBUS受電 | **【実証】** WeAct既存J1 |
-| IF-02 | USB-C② PC通信 | USB 2.0 CDC-ACM（仮想COM） | **【決定】** 方式。追加基板の配線案あり／実機CDC未実装 |
+| IF-02 | USB-C② PC通信 | USB 2.0 CDC-ACM（仮想COM） | **【実証／試作限定】** 実験18～21でCOM9動作。追加USB-C配線は試作、製品回路は未確定 |
 | IF-03 | 負荷側出力 | 設定したPD/PPS電源を外部負荷へ供給 | **【未決定】** 端子・定格・スイッチ・保護 |
 | IF-04 | OLED | 状態、PDO/APDO、設定、計測の表示 | **【実証】** SSD1306 128×64 |
 | IF-05 | EC11＋戻るボタン | メニュー選択・値編集・確定・取消 | **【実証】** 基本操作 |
@@ -151,9 +163,9 @@ USB PD/PPS充電器
 
 | ID | 製品要求 | 現状・留意点 |
 |---|---|---|
-| PC-01 | 内蔵USBFSを使い**USB CDC-ACM**としてPCへ接続する | **【決定】** USB-UART変換ICは採用しない。**未実装** |
+| PC-01 | 内蔵USBFSを使い**USB CDC-ACM**としてPCへ接続する | **【実証】** CH32X035内蔵USBFSでWindows 11 COM9動作。製品基板への統合は未実施 |
 | PC-02 | USB 2.0 Full-Speed（12Mbit/sリンク）で双方向通信する | **【決定】** 12Mbpsはアプリ実効速度を保証しない |
-| PC-03 | Windows 11とLinuxから仮想COMポートとして利用できる | **【決定】** Windows 11を先行検証 |
+| PC-03 | Windows 11とLinuxから仮想COMポートとして利用できる | **【一部実証】** Windows 11 COM9を確認。Linuxでの実機試験は未実施 |
 | PC-04 | PCから装置・PD契約状態・PDO/APDO能力・設定値・測定値を取得できる | **【決定】** 機能要求。**コマンド形式は未決定** |
 | PC-05 | PCからPPS電圧と要求電流を変更できる | **【決定】** 製品要求。実機統合は未実施 |
 | PC-06 | PC側ソフトウェアで時系列計測を保存できる | **【決定】** 記録要求。CSVとPython CLIを先行候補とする【提案】 |
@@ -185,7 +197,7 @@ USB PD/PPS充電器
 
 - MCU：**CH32X035F8U6**、WeActStudio CH32X035 CoreBoard V1.0。
 - PD：内蔵USB PD用CCコントローラ、PC14/PC15。
-- USB PC通信：内蔵USBFS、PC16（D−）/PC17（D+）。**USB CDCは現時点では未実装。**
+- USB PC通信：内蔵USBFS、PC16（D−）/PC17（D+）。**実験18～21でWindows 11 COM9のCDC通信を実機確認済み**。既存J1とD+/D−を共有するため、製品回路の再設計が必要。
 - 電流・電力計測：INA226＋R010（0.01Ω）。
 - 表示：SSD1306、128×64、I²C。操作：EC11押込み付き＋戻るボタン。
 - 現行試作I²C：PA2/PA3のソフトI²C（High時はGPIOを入力として開放）。
@@ -247,12 +259,15 @@ USB-CコネクタのVBUS/CC/D+/D−配線、PC側VBUSの検出・D+プルアッ�
 | `15_oled_encoder_ui` | PDO/APDO閲覧と設定プレビュー | M4-A基本確認（実要求は行わない） |
 | `16_oled_encoder_pps_control` | UIからPPS実要求を変更 | M4-B基本機能実機PASS。未コミットの別作業変更あり |
 | `17_pd_spr_sink_rebuild` | PD通信・監視・安全停止・診断 | M13gを保存済み、2機種短時間通常回帰PASS |
-| 新規CDC単独実験（番号未定） | USBFS CDC-ACMエコー | **M5-A：未着手** |
+| `18_usb_cdc_acm_echo` | M5：USBFS CDC-ACMエコー | Windows 11 COM9、所定の診断版ストレス試験PASS |
+| `19_usb_cdc_commands` | M6：PCコマンド通信 | INFO/STATUS/PING等の実機試験PASS |
+| `20_usb_cdc_measure` | M7：MEASUREプロトコル | センサーなしでunavailableを返す実機試験PASS |
+| `21_usb_cdc_ina226` | M8：INA226実測データ取得 | COM9から49mV/0mA取得。精度とPD同時動作は未検証 |
 | 将来の統合版 | UI＋PD17＋計測＋CDC＋保護 | **M8：未着手** |
 
 - **【決定】** CDC実験はPD17 M13gとM4-Bの既存実績を破壊せず、独立の実験フォルダーで開始する。
 - **【提案】** 役割をPD Policy/PHY、USB CDC、計測、UI、コマンド調停、保護状態管理に分離し、メインループで長時間ブロックしない。
-- **【未決定】** WCH USB CDCサンプルを移植するか、TinyUSBを組み込むか。ch32funとの整合、ライセンス、割り込み、RAM/FLASHを測定して選ぶ。
+- **【実証】** 実験18～21はch32funのUSBFS（fsusb）を利用してCDC-ACMを実装。製品統合に採用するUSB実装・長時間安定性・仕様適合の確定は未完了。
 - **【実証】** M13f時点のPD17はFLASH 38,372B／約62KB、RAM 3,388B／約20KB。**M13gのビルド容量ログは未提示**。統合後の容量は未確認。
 
 ### 5.2 PDとUSBの実行制約【提案】

@@ -2,6 +2,8 @@
 
 Based on **10_pps_adc_calibrated** from the user-supplied `pd_pps-main.zip` (2026-10-23 snapshot). It preserves its existing USB PD/PPS transport, reconnect policy, commands, and the PA0 ADC calibration, while adding an INA226 voltage/current/power monitor with an **R010 = 0.010 ohm shunt**.
 
+> **配線情報の一元管理：** 現在の評価機のI²Cピン、R010の高側接続、VBS測定点、PC用USB-Cとの共存条件は [`docs/HARDWARE_WIRING.md`](../../../docs/HARDWARE_WIRING.md) を参照。本READMEは実験11の記録・当時の手順を保持する。最新のM8実機結果とは区別する。
+
 ## IMPORTANT: hardware and electrical limits
 
 - The INA226 is powered by **3.3 V only**, never by PPS VBUS (which can exceed 5 V). Digital SCL/SDA pull-ups must also go to **3.3 V**, NOT VBUS.

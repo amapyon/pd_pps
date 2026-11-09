@@ -6,6 +6,12 @@ CH32X035を使用したUSB Power Delivery（PD）／Programmable Power Supply（
 
 このREADMEは **Gitリポジトリ `C:\pj\pd_pps\src\pd_pps` の直下** にあります。現在確認できるBuild/Flash補助スクリプトはリポジトリ内の`dev-workspace/pd-pps.ps1`です。旧運用で使っていた`C:\pj\pd_pps`直下のスクリプトやマルチルート`.code-workspace`は、このリポジトリのZIPには含まれていません。**標準手順はGitリポジトリをVS Codeで直接開く方法**です。
 
+## 回路・配線情報の管理
+
+評価機の基板ネット、外付けINA226（実験11・21）、PC通信用USB-C（実験18以降）、GPIO割当て、配線禁止事項・未確認事項は、**[回路・配線リファレンス](docs/HARDWARE_WIRING.md)** に集約する。
+
+M8のINA226／CDC取得の実測ログと、測定精度が未検証である範囲は [M8実機検証記録](docs/M8_USB_CDC_INA226_VERIFICATION.md) を参照。配線を変更するときは、この2文書と当該実験READMEを合わせて更新する。
+
 ## 1. 開発環境
 
 | 項目 | 内容 |
