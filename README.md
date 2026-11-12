@@ -12,6 +12,8 @@ CH32X035を使用したUSB Power Delivery（PD）／Programmable Power Supply（
 
 M8のINA226／CDC取得の実測ログと、測定精度が未検証である範囲は [M8実機検証記録](docs/M8_USB_CDC_INA226_VERIFICATION.md) を参照。配線を変更するときは、この2文書と当該実験READMEを合わせて更新する。
 
+**2026-11-12追補：** 実験22（EP3送信トレース）・23（USBFS IRQトレース）・24（USB CDC自動復旧）を保存。実験24は通信切断を3回検出後もMEASURE 100/100件を取得。MCU独自の2.5秒EP3タイムアウト復旧と製品向けPD/PPS制御APIは未完了。詳細は[USB CDC自動復旧の検証記録](docs/M8_USB_CDC_RECOVERY_VERIFICATION.md)を参照。
+
 ## 1. 開発環境
 
 | 項目 | 内容 |

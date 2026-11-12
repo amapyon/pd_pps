@@ -4,13 +4,13 @@
 |---|---|
 | 文書ID | PD-PPS-PRODUCT-SPEC-001 |
 | 版 | **v0.1 — 開発中／製品仕様案** |
-| 更新日 | 2026-11-09 |
+| 更新日 | 2026-11-12 |
 | 製品名 | **PD/PPS Explorer（仮称）** |
 | 対象 | USB PD/PPSの能力確認・設定・測定を行うスタンドアロン／PC連携装置 |
 | 開発基盤 | CH32X035、WeActStudio CH32X035 CoreBoard V1.0（評価ボード） |
-| 現在の進捗 | 実験18(M5) CDCエコー、19(M6)コマンド、20(M7)計測プロトコル、21(M8) INA226取得を実機で確認。**製品統合と計測精度検証は未完了** |
+| 現在の進捗 | 実験18～21のCDC／INA226取得、実験22～23の転送診断、実験24の切断3回からの100/100件取得を確認。**製品向けPD/PPS制御API、計測精度、MCU独自タイムアウト復旧は未完了** |
 | PD通信コードの保存基準 | `17_pd_spr_sink_rebuild` M13g、Git `bcd0c0d`（2026-11-08 GitHub `main`同期確認） |
-| 関連文書 | `docs/HARDWARE_WIRING.md`（回路・配線の基準）、`docs/M8_USB_CDC_INA226_VERIFICATION.md`（M8実測記録）、`ROADMAP.md`、その他M5～M7実機検証記録 |
+| 関連文書 | `docs/HARDWARE_WIRING.md`（配線）、`docs/M8_USB_CDC_INA226_VERIFICATION.md`（実測）、`docs/M8_USB_CDC_RECOVERY_VERIFICATION.md`（通信復旧）、`docs/M5_NEXT_PC_CONTROL_PLAN.md`（次工程）、`ROADMAP.md`、その他M5～M7実機検証記録 |
 
 > **本書の役割**：個別の実験仕様ではなく、開発中の**製品全体**の目的、ユーザー機能、ハードウェア／ソフトウェア構成、PCインターフェース、安全要求、検証ゲートを一元管理する。`ROADMAP.md`は進捗履歴、M5個別仕様はUSB CDCの実装詳細として位置付ける。
 >
@@ -364,7 +364,7 @@ Windows 11／Linux向けにPython＋シリアルライブラリを使ったCLI�
 | M2 | SSD1306表示 | **完了** | OLEDとINA226 I²C共存・基本安定性 |
 | M3 | EC11＋戻るボタン | **完了（基本機能）** | 操作実証。網羅的耐久は後工程 |
 | M4 | スタンドアロンUI | **進行中** | M4-B実PPS変更成功、接続時異常系等が残る |
-| **M5** | **PC制御・データ取得** | **仕様策定中／実装未着手** | CDC方式を決定。M5-A → G → B/C |
+| **M5** | **PC制御・データ取得** | **進行中／通信・計測・切断後復帰を実機確認。PD/PPS設定APIは未統合** | 実験18～24を保存。次は安全な読取API・設定API・UI競合の統合 |
 | M6 | 独自ファーム書き込み・復旧 | **未着手** | 更新・復旧の再現試験が必要 |
 | M7 | 安定性・保護 | **進行中** | PD17 M13gまで先行実証。保護全体は未完了 |
 | M8 | 全機能統合試作 | **未着手** | PD＋USB＋計測＋UIの同時動作がゲート |
@@ -479,3 +479,9 @@ M6にはPD/PPS設定や計測値取得機能はまだ実装していない。長
 `MEASURE`はセンサー未設定のため`status=unavailable reason=not_configured voltage_mV=NA current_mA=NA`を返す。物理的な電圧・電流測定はまだ未実装。
 M7の独立したBuild/Flashログはこの検証記録に含まない。USB再接続・長時間耐久・PD/PPS統合・実センサーの配線と校正は未検証。
 詳細: [M7 USB CDC計測コマンド 実機検証記録](M7_USB_CDC_MEASURE_VERIFICATION.md)。
+
+## 2026-11-12追補：USB CDC自動復旧
+
+実験24は通常時100/100件、切断3回を伴う試験でも100/100件のMEASURE取得に成功。Kernel-PnP Event 1010とPnP親子関係から、CH32X035の上流USBハブ（VID_1A40/PID_0101）の突然の取り外しも確認した。根本原因調査は終了し、ホスト再接続とMCUのUSBバスRESET復帰を優先。MCU独自の2.5秒EP3タイムアウト強制復旧は実機未検証。通信断中の欠測や物理的な接触不良は解決しない。非冪等なPD/PPS出力設定は無条件に再試行しない。
+
+参照：[USB CDC自動復旧検証記録](M8_USB_CDC_RECOVERY_VERIFICATION.md)、[次のM5統合計画](M5_NEXT_PC_CONTROL_PLAN.md)。

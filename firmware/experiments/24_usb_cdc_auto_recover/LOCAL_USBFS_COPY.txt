@@ -1,0 +1,4 @@
+Experiment 24 local USBFS source from experiment 23; no upstream writes
+Source: C:\pj\pd_pps\src\pd_pps\firmware\experiments\23_usb_cdc_irq_trace\m8e_fsusb.c
+Source-SHA256: 1A4C415B440235C058653FC03434637F9F0461339CF4162C38194C55A945F01F
+IRQ hook M8E_IrqEntry(intfgst) retained; M8F recovery called from m8e_irq_trace.c
