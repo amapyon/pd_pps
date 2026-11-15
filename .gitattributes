@@ -42,3 +42,6 @@
 *.yml text eol=lf
 *.yaml text eol=lf
 *.patch text eol=lf
+
+# Preserve original bytes of diagnostic test fixtures
+src/pd_pps/dev-workspace/testdata/*.log -text -eol

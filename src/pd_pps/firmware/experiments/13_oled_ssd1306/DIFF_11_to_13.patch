@@ -1,0 +1,201 @@
+--- 11_pps_ina226_monitor/pps_manual_voltage.c
++++ 13_oled_ssd1306/pps_oled_ssd1306.c
+@@ -23,6 +23,8 @@
+ #include "adc_voltage.h"
+ #include "adc_calibration.h"
+ #include "ina226.h"
++#include "m2_bus_adapter.h"
++#include "m2_dashboard.h"
+ 
+ #define USBPD_IMPLEMENTATION
+ #include "usbpd_current.h"
+@@ -43,12 +45,47 @@
+ #define CC_DETACH_DEBOUNCE_MS       150u
+ #define INPUT_LINE_SIZE              32u
+ 
++/* M2 only: Set 0 to compile without OLED activity for A/B diagnosis.
++ * This does NOT disable INA226, PD control, or serial meter commands. */
++#define M2_OLED_ENABLE               1u
++#define M2_OLED_POWER_SETTLE_MS     150u
++#define M2_INA_SAMPLE_PERIOD_MS     800u
++
+ static volatile uint32_t s_ms;
+ static char s_line[INPUT_LINE_SIZE];
+ static unsigned s_line_length;
+ static bool s_line_ready;
+ static bool s_line_overflow;
+ static bool s_last_was_newline;
++
++#if M2_OLED_ENABLE
++/* Persistent buffer: 1024 bytes framebuffer, never allocate on stack. */
++static m2_dashboard_t s_m2_display;
++static bool s_m2_probe_done;
++static bool s_m2_oled_ok;
++static bool s_m2_fault_reported;
++static uint32_t s_m2_last_sample_ms;
++
++static bool m2_start(void *context)
++{
++    (void)context;
++    return ina226_i2c_begin();
++}
++
++static bool m2_send(uint8_t data, void *context)
++{
++    (void)context;
++    return ina226_i2c_send(data);
++}
++
++static void m2_end(void *context)
++{
++    (void)context;
++    ina226_i2c_end();
++}
++
++static m2_i2c_ops_t s_m2_bus = {m2_start, m2_send, m2_end, NULL};
++#endif
+ 
+ /* Same receive-only handler as the previously working original firmware. */
+ void handle_debug_input(int length, uint8_t *bytes)
+@@ -105,6 +142,58 @@
+     uint8_t pdo_index;
+     CCDetachFilter detach;
+ } Session;
++
++#if M2_OLED_ENABLE
++/* Called only from the main loop, after PD and console processing.
++ * PD negotiation is prioritized; only one OLED I2C transaction per tick.
++ */
++static void m2_service(const Session *session)
++{
++    const uint32_t now = s_ms;
++    const bool active_negotiation =
++        session->mode == MODE_NEGOTIATING && session->negotiating_started;
++
++    if (!s_m2_probe_done && now >= M2_OLED_POWER_SETTLE_MS &&
++        !active_negotiation) {
++        s_m2_probe_done = true;
++        s_m2_oled_ok = m2_dashboard_init(&s_m2_display, m2_bus_write,
++                                          &s_m2_bus);
++        if (s_m2_oled_ok) {
++            printf("M2: SSD1306 ready at 0x%02X (PA2 SCL / PA3 SDA)\n",
++                   (unsigned)s_m2_display.oled.address7);
++        } else {
++            printf("M2: no SSD1306 at 0x3C/0x3D (PD/INA226 continue)\n");
++        }
++    }
++    if (!s_m2_oled_ok) return;
++
++    m2_dashboard_set_pd(&s_m2_display, (int32_t)session->desired_mv,
++                        (uint16_t)session->desired_ma,
++                        session->mode == MODE_READY &&
++                        USBPD_GetState() == eSTATE_PS_RDY);
++
++    /* The original 'm' and 'status' commands remain untouched; display
++     * measurements are sampled independently from the same read function.
++     * No INA226 accesses in an IRQ or while actively negotiating PD.
++     */
++    if (!active_negotiation &&
++        (uint32_t)(now - s_m2_last_sample_ms) >= M2_INA_SAMPLE_PERIOD_MS) {
++        INA226Reading r;
++        const bool valid = ina226_read(&r);
++        s_m2_last_sample_ms = now;
++        m2_dashboard_set_ina_raw(&s_m2_display,
++                                  valid ? r.bus_raw : 0u,
++                                  valid ? r.shunt_raw : 0,
++                                  valid);
++    }
++    if (active_negotiation) return;
++    m2_dashboard_service(&s_m2_display, now);
++    if (s_m2_display.display_fault && !s_m2_fault_reported) {
++        s_m2_fault_reported = true;
++        printf("M2: OLED transfer error; display stopped (PD/INA226 continue)\n");
++    }
++}
++#endif
+ 
+ static const char *session_mode_name(SessionMode mode)
+ {
+@@ -623,7 +712,7 @@
+     adc_voltage_init_pa0();
+     ina226_bus_init();
+     WaitForDebuggerToAttach(0);
+-    printf("BOOT: CH32X035 PPS + calibrated ADC + INA226 R010 (PA2/PA3)\n");
++    printf("BOOT: CH32X035 PPS + calibrated ADC + INA226 + SSD1306 (PA2/PA3)\n");
+     printf("PPS RDO: 20mV voltage, 50mA requested current steps\n");
+ 
+     Session session = {0};
+@@ -640,6 +729,9 @@
+         poll_input();
+         process_command(&session);
+         tick_session(&session);
++#if M2_OLED_ENABLE
++        m2_service(&session);
++#endif
+         /* Keep CC detection/initial PD negotiation responsive. */
+         Delay_Ms(session.mode == MODE_NEGOTIATING ? 1u : 10u);
+     }
+--- 11_pps_ina226_monitor/ina226.c
++++ 13_oled_ssd1306/ina226.c
+@@ -394,3 +394,21 @@
+     reading->power_mw = ina226_power_mw(reading->bus_mv, reading->current_ua);
+     return true;
+ }
++
++/* M2: Expose the proven software I2C transaction primitives to the
++ * SSD1306 adapter. The original GPIO and INA226 read paths are unchanged. */
++bool ina226_i2c_begin(void)
++{
++    s_i2c_error = I2C_ERR_NONE;
++    return i2c_start();
++}
++
++bool ina226_i2c_send(uint8_t byte)
++{
++    return i2c_write_byte(byte);
++}
++
++void ina226_i2c_end(void)
++{
++    i2c_stop();
++}
+--- 11_pps_ina226_monitor/ina226.h
++++ 13_oled_ssd1306/ina226.h
+@@ -26,4 +26,14 @@
+  */
+ void ina226_scan(void);
+ 
++/* M2: Existing PA2/PA3 software-I2C bus adapter.
++ * These are thin wrappers around the VERIFIED i2c_start/write_byte/stop.
++ * Call in the main loop only; the I2C transaction must be ended with end(),
++ * including when start/send fails. A true send() result means ACK.
++ * No changes to GPIO input/release behavior or INA226 calibration.
++ */
++bool ina226_i2c_begin(void);
++bool ina226_i2c_send(uint8_t byte);
++void ina226_i2c_end(void);
++
+ #endif
+--- 11_pps_ina226_monitor/Makefile
++++ 13_oled_ssd1306/Makefile
+@@ -1,7 +1,7 @@
+ # v3-derived: manual PPS voltage AND current, with reconnect support.
+ all: build
+-TARGET := pps_manual_voltage
+-ADDITIONAL_C_FILES := adc_voltage.c adc_calibration.c ina226.c
++TARGET := pps_oled_ssd1306
++ADDITIONAL_C_FILES := adc_voltage.c adc_calibration.c ina226.c m2_bus_adapter.c m2_ssd1306.c m2_dashboard.c
+ TARGET_MCU := CH32X035
+ TARGET_MCU_PACKAGE := CH32X035F8U6
+ CH32FUN := ../ch32fun/ch32fun
+@@ -36,3 +36,10 @@
+ 	cc -std=c11 -Wall -Wextra -Werror -I. -o /tmp/test_ina226_units tests/test_ina226_units.c
+ 	/tmp/test_ina226_units
+ 	$(RM) /tmp/test_ina226_units
++
++	cc -std=c11 -Wall -Wextra -Werror -pedantic -O2 -I. -o /tmp/test_m2_oled_host tests/test_oled_host.c m2_bus_adapter.c m2_ssd1306.c m2_dashboard.c
++	/tmp/test_m2_oled_host
++	$(RM) /tmp/test_m2_oled_host
++	cc -std=c11 -Wall -Wextra -Werror -pedantic -O2 -I. -o /tmp/test_m2_oled_bus tests/test_oled_bus.c m2_bus_adapter.c
++	/tmp/test_m2_oled_bus
++	$(RM) /tmp/test_m2_oled_bus

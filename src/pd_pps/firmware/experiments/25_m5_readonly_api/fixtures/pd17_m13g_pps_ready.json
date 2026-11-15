@@ -1,0 +1,12 @@
+{
+  "source": "pd17_host_test_fixture",
+  "description": "Six raw PDO values from PD17 tests/test_policy.c; 7V/1A Ready from PD17 tests and real short runs. Synthetic sensor sample is deliberately invalid.",
+  "snapshot": {
+    "pd_state": "ready", "contract_valid": true, "pps_active": true,
+    "pdo_index": 6, "requested_mv": 7000, "requested_ma": 1000,
+    "caps_fresh": true, "caps_epoch": 1,
+    "raw_pdos": ["0x0801912c", "0x0002d12c", "0x0003c12c", "0x0004b12c", "0x0006412c", "0xc1a4213c"],
+    "sensor": {"valid": false, "voltage_mv": null, "current_ma": null},
+    "usb": {"bus_resets": 0, "tx_timeouts": 0, "reconnects": 0}
+  }
+}

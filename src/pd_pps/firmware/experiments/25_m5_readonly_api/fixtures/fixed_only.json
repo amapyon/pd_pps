@@ -1,0 +1,12 @@
+{
+  "source": "pd17_host_test_fixture",
+  "description": "PD17 fixed-only SourceCaps / Fixed 5V 1A contract scenario.",
+  "snapshot": {
+    "pd_state": "ready", "contract_valid": true, "pps_active": false,
+    "pdo_index": 1, "requested_mv": 5000, "requested_ma": 1000,
+    "caps_fresh": true, "caps_epoch": 3,
+    "raw_pdos": ["0x0801912c"],
+    "sensor": {"valid": false, "voltage_mv": null, "current_ma": null},
+    "usb": {"bus_resets": 0, "tx_timeouts": 0, "reconnects": 0}
+  }
+}

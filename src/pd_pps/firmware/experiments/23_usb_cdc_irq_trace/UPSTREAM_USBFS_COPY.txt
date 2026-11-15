@@ -1,0 +1,6 @@
+M8E local upstream fsusb.c copy; upstream unchanged
+Original: C:\pj\pd_pps\src\pd_pps\ch32fun\extralibs\fsusb.c
+Original-SHA256: D4353D8C5FA474877907BF14CBFBD755332C72DD4AFF10AF194D452603624148
+Instrumented-SHA256: 1A4C415B440235C058653FC03434637F9F0461339CF4162C38194C55A945F01F
+One M8E_IrqEntry(intfgst) call inserted after USBFS INT_FG / INT_ST read
+Do not replace this local source without rechecking the hook and license.

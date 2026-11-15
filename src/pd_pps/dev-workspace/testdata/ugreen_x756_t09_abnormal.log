@@ -1,0 +1,22 @@
+﻿PD: updated Source_Capabilities; renegotiating without USBPD_Reset
+PD: negotiate=OK, state=Power Supply Ready
+PD: Source PDO count=6
+PD: PDO[0] raw=0x0801912C FIXED 5000 mV / 3000 mA
+PD: PDO[1] raw=0x0002D12C FIXED 9000 mV / 3000 mA
+PD: PDO[2] raw=0x0003C12C FIXED 12000 mV / 3000 mA
+PD: PDO[3] raw=0x0004B12C FIXED 15000 mV / 3000 mA
+PD: PDO[4] raw=0x00164145 FIXED 20000 mV / 3250 mA
+PD: PDO[5] raw=0x2F9AD2C3 FIXED 34600 mV / 7070 mA
+PPS LIMITS: no PPS APDO (fixed PDOs are not adjustable PPS).
+INA226: addr=0x40 BUS=0.011 V, I=-0.250 mA, P=0.000 W
+
+PD: updated Source_Capabilities; renegotiating without USBPD_Reset
+PD: negotiate=OK, state=Power Supply Ready
+PD: Source PDO count=5
+PD: PDO[0] raw=0x0801912C FIXED 5000 mV / 3000 mA
+PD: PDO[1] raw=0x0002D12C FIXED 9000 mV / 3000 mA
+PD: PDO[2] raw=0x0003C12C FIXED 12000 mV / 3000 mA
+PD: PDO[3] raw=0x0004B12C FIXED 15000 mV / 3000 mA
+PD: PDO[4] raw=0x00164145 FIXED 20000 mV / 3250 mA
+PPS LIMITS: no PPS APDO (fixed PDOs are not adjustable PPS).
+INA226: addr=0x40 BUS=5.091 V, I=-0.250 mA, P=-0.001 W
