@@ -31,3 +31,21 @@
 # .gitignore; explicitly add with git add -f only after review)
 .DS_Store
 Thumbs.db
+
+# Historical release packages and patches at project root
+/*.zip
+/*.patch
+/*.bak
+
+# Historical working directories
+/backups/
+/review-fixes-extracted-*/
+/m*-kit/
+
+# Legacy one-off scripts at project root
+# Maintained scripts belong in scripts/ or src/
+/*.ps1
+/*.py
+
+# Legacy workspace (standard workspace is src/pd_pps)
+/pd_pps.code-workspace
