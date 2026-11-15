@@ -5,9 +5,9 @@ CH32X035F8U6（WeActStudio CH32X035 CoreBoard V1.0）を使用した、USB Power
 - **配置先:** `C:\pj\pd_pps\README.md`（このファイル）
 - **Git管理ルート:** `C:\pj\pd_pps`（移行済み、ブランチ`main`）
 - **更新基準日:** 2026-11-15
-- **現在の実機ファームウェア:** **M43A**
-- **直近の調査テーマ:** PD Request送信後のGoodCRC受信不安定（初回RequestとPPS周期更新を区別して調査）
-- **原則:** 動作実績のあるM13bおよび現在のM43Aは保全し、原因を切り分けるまでファームウェアと基板配線を不用意に変更しない。
+- **直近の実機検証版:** **M43B-7 P2**（`src/pd_pps/firmware/experiments/43b7_p2_session_refactor`。R01～R03回帰試験済み。ビルドBIN同一性の独立確認は別途）
+- **現在地:** P0（回帰テスト基盤）、P1（重複コード削減）、P2（`main.c`責務分離）の主要実機回帰検証が完了。次工程はP3（診断整理・PC側可視化）。USB接続時GoodCRC失敗とVBUS低下は未解決。
+- **原則:** 正常動作の実績があるM13b、履歴版M43A、診断版M43B-5、P0/P1版M43B-6、P2版M43B-7をそれぞれ保全し、今後のP3は独立した実験版にする。
 
 > このREADMEは、開発環境とチャット連携の入口です。**単一Gitルートは本ディレクトリに確立済み**です。`src/pd_pps/ch32fun`はSubmoduleとして登録済みです。今回のルールZIPの配布・展開はWindows上での適用やGitコミットを意味しません。詳細な実験・ビルド手順は [`src/pd_pps/README.md`](src/pd_pps/README.md) を参照します。
 
@@ -39,7 +39,10 @@ C:\pj\pd_pps\
 │       └── firmware\
 │           └── experiments\
 │               ├── 17_pd_spr_sink_rebuild\   # M13bの実績あるPD PHYの参照元
-│               └── 43a_pd17_phy_baseline\   # M43A（現在の比較対象）
+│               ├── 43a_pd17_phy_baseline\   # M43A（過去の比較基準）
+│               ├── 43b5_refresh_irq\        # M43B-5：USB物理接続の切り分け
+│               ├── 43b6_p0p1_refactor\      # M43B-6：P0/P1主要回帰検証済み
+│               └── 43b7_p2_session_refactor\ # M43B-7：P2主要回帰検証済み
 └── diagnostics\                     # 実測・解析・記録（ディレクトリ全体をGit除外）
     └── m43a_goodcrc\
         ├── logs\                    # 試行ごとのWCH-LinkE生ログ
@@ -116,7 +119,7 @@ VS Codeのタスクは`src\pd_pps\.vscode\tasks.json`にあります。メニュ
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\pj\pd_pps\src\pd_pps\dev-workspace\pd-pps.ps1" -Action Probe
 ```
 
-### M43Aのビルド（書き込みなし）
+### 旧M43Aのビルド（履歴用・現行M43B-7のビルド手順ではない）
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\pj\pd_pps\src\pd_pps\dev-workspace\pd-pps.ps1" -Action Build -Project firmware/experiments/43a_pd17_phy_baseline
@@ -124,17 +127,17 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\pj\pd_pps\src\pd_pps
 
 M43Aでは過去にエントリファイルの`#include "src/main.c"`が欠け、`main`未定義でリンク失敗したことがあります。修正版はビルド成功と記録されていますが、**手元の作業ツリーが修正版と一致するかはビルド前に確認**してください。
 
-### 書き込み（明示的に必要な場合のみ）
+### 旧M43Aの書き込みコマンド例（履歴用・今回実行しない）
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\pj\pd_pps\src\pd_pps\dev-workspace\pd-pps.ps1" -Action Flash -Project firmware/experiments/43a_pd17_phy_baseline
 ```
 
-**注意:** FlashはMCUの既存ファームウェアを上書きします。現在のGoodCRC比較実験では、M43Aを**書き換えない**方針です。書き込みを実施する場合は、対象ソース、現在のM43Aへ戻すための復旧手段、PD電源・配線、負荷条件を確認し、`minichlink -T`のログ端末を終了してください。
+**注意:** FlashはMCU上の現行ファームウェアを上書きします。上記は過去のM43Aを参照するコマンド例であり、**この文書更新・Gitコミットのために実行しません**。M43B-7のソース/ビルド/書き込みは実験フォルダー付属の手順を使用し、PD電源・配線・負荷条件を確認してください。
 
 ## 4. ハードウェアと接続
 
-現在のM43A実機で使用している構成は次のとおりです。
+M43A～M43B-7の実機比較で使用してきた接続構成は次のとおりです。
 
 | 用途 | 接続・設定 |
 |---|---|
@@ -156,13 +159,31 @@ COM番号は接続状況によって変わります。Windowsのデバイスマ�
 
 回路と配線の詳細は [`src/pd_pps/docs/HARDWARE_WIRING.md`](src/pd_pps/docs/HARDWARE_WIRING.md) と当該実験のREADMEを参照してください。
 
-## 5. 現在のM43Aと確認済みの実機結果
+## 5. M43B-7までの実機結果と旧M43Aの記録
+
+### 最新の基準：M43B-7 P2（2026-11-15）
+
+- **M43B-5:** PC通信用USBが物理切断された05ではPPS READY約31.9秒・更新6/6成功。USB接続/CDCアイドルの06R1はGoodCRCタイムアウト3回で`TX_FAILED`、PnP監視120秒はCOM16/WCH-LinkEの認識変化なし。USB再切断の07では初回GoodCRC成功・READY約30ms後にVBUS異常停止。
+- **M43B-6 P0/P1:** `43b6_p0p1_refactor`。異常状態の初期化とCDC数値解析の重複を削減し、ホスト比較・実機R01/R02・CDC R03（24/24）で既知挙動との回帰を確認。
+- **M43B-7 P2:** `43b7_p2_session_refactor`。`main.c`の責務を`pd_session.c/h`と`pd_session_diag.c/h`へ分離。PD PHY・USBFS ISR・GoodCRC時間条件は変更せず、R01～R03の主要回帰ゲートPASS。
+
+| M43B-7試験 | PC USB接続条件 | 結果 | 判定範囲 |
+|---|---|---|---|
+| R01 OFF CC1 | 物理切断 | 初回GoodCRC一致、Accept/PS_RDY/READY、READY 24ms、約590msで`VBUS_FAULT` | 旧版と同じ短時間遷移・保護停止の回帰PASS。長時間安定の合格ではない |
+| R02 ON CC1 IDLE | 接続・CDCコマンド休止 | 初回RequestでCRCタイムアウト3回、再送2回、`TX_FAILED`、USBFS IRQ 0 | 旧版と同じ失敗経路の回帰PASS。PD通信そのものは失敗 |
+| R03 CDC INDEX | 接続・PD充電器なし | PING/STAT/COUNT/VBLOG/PDTRACE 24/24 PASS | インデックス解析・応答互換性の確認。非空履歴の全経路は未検証 |
+
+**未解決:** PC USB接続がGoodCRC失敗と相関するが電気的原因は未確定。READY直後の実VBUS低下はADC値とおおむね一致しており、ADC精度校正は製品PCB製作後に行う方針。根本原因の修正とP3の構造整理は混ぜない。
+
+Git管理する検証の詳細は [`docs/M43B7_P2_VERIFICATION.md`](docs/M43B7_P2_VERIFICATION.md)。実測生ログ・SRAMは`diagnostics/`内で別途保全する。**現PCへ適用・コミット・Pushしたという意味ではない。**
+
+### M43A以前の履歴（以下の既存記録は当時の状態）
 
 ### ソフトウェアの位置付け
 
 - **M13b:** `firmware/experiments/17_pd_spr_sink_rebuild`。過去にCC1、初回Request再送なしで7V・1A PPS契約に成功した、実績あるPD PHYの参照元。
-- **M43A:** `firmware/experiments/43a_pd17_phy_baseline`。M13b由来のPD PHYを、M42のUSB CDC・センサー監視機能と統合した比較版。**現在の実機ファームウェア**。
-- **M43B:** 現段階では開発・実機検証していない。必要性は比較実験の結果から判断する。
+- **M43A:** `firmware/experiments/43a_pd17_phy_baseline`。M13b由来のPD PHYを、M42のUSB CDC・センサー監視機能と統合した**過去の比較版**。
+- **M43B系列:** M43B-5～7の診断・リファクタリング実験は実装と短時間実機試験を実施済み。詳細は本節冒頭の最新結果を参照。
 - **製品向け統合版:** `firmware/product/`は将来の計画上の配置先であり、作成済みの製品版として扱わない。
 
 ### 観測された事実（2026-11-15時点）
@@ -180,11 +201,13 @@ COM番号は接続状況によって変わります。Windowsのデバイスマ�
 
 **原因は未確定:** USBFS割り込み負荷、PD送信完了後のRX移行タイミング、GND/CC信号品質、配線・接触条件などは、いずれも**仮説**です。`TX_FAILED`だけでは、充電器がGoodCRCを送信しなかったのか、MCUが受信・認識できなかったのかを区別できません。物理層の確定にはCC波形観測やPDアナライザー等が必要です。
 
-## 6. GoodCRC比較実験：ログの取得と解析
+## 6. M43AのGoodCRC比較実験（過去の診断v3手順）
+
+以下は当時のログ形式・試行例の記録です。**現在のM43B-7のR01～R03を再実施する指示ではありません。**
 
 **目的:** M43Aのソースと配線を変更せず、同じ充電器・ケーブル・CC向き・無負荷条件で、PC CDC接続の有無とRequestごとの再送回数を比較します。初回Requestと5秒周期のPPS更新Requestは**別々に集計**します。
 
-### 6.1 現行の診断パッケージ（v3）
+### 6.1 M43A当時の診断パッケージ（旧v3・履歴）
 
 現在案内済みの診断v3では、以下を使用します。
 
@@ -264,7 +287,13 @@ v3は`logs\`の対象ファイルを読み取り、**`analysis\`直下の固定�
 
 旧v3のインストーラーは同名スクリプトを強制コピーする処理があり、v04以降の安全なインストール方式とは異なります。**既にv3を導入済みなら、通常のログ取得や解析のために旧インストーラーを再実行する必要はありません。**
 
-## 7. 次に行う実験
+## 7. 次の開発・検証
+
+1. **P0/P1/P2までのコミット確定:** M43B-6・M43B-7ソースと、更新したルートのREADME/ROADMAP/HANDOFF、`docs/M43B7_P2_VERIFICATION.md`だけを明示的にステージし差分確認する。生ログ、旧未追跡ファイル、規約の別変更を巻き込まない。
+2. **P3計画:** 検証済みM43B-7を固定し、診断イベント定義の一元化・数値コードの名称化・PC側時系列レポートを独立した新実験で実施する。PD PHY・USBFS ISR・時間条件・SRAM既存形式の互換性を保つ。
+3. **残課題:** PC USB物理接続とGoodCRC失敗の関係、PPS READY直後の実VBUS低下の原因は未解決。P3の挙動整理と原因対策を別の変更セットとして扱う。ADC精度校正は製品PCB後工程へ回す。
+
+### M43A時点の旧試験案（当時の予定。今回の次操作ではない）
 
 1. **M43Aを保全**したまま、CDC ON/OFFを交互に比較する。現在、試行01・02のログが解析対象。
 2. 試行03（ON / CC1）・04（OFF / CC1）を同じ測定条件で取得する。接続時間はPPS更新を観測できる程度に固定する。
@@ -281,7 +310,7 @@ v3は`logs\`の対象ファイルを読み取り、**`analysis\`直下の固定�
 | [`src/pd_pps/README.md`](src/pd_pps/README.md) | Gitリポジトリ、VS Code、ビルド、実験の運用 |
 | [`src/pd_pps/docs/HARDWARE_WIRING.md`](src/pd_pps/docs/HARDWARE_WIRING.md) | 基板と追加回路の配線・注意事項 |
 | `src\pd_pps\firmware\experiments\17_pd_spr_sink_rebuild\` | M13bのPD PHY参照元 |
-| `src\pd_pps\firmware\experiments\43a_pd17_phy_baseline\` | 現在のM43A実験ソース |
+| `src\pd_pps\firmware\experiments\43a_pd17_phy_baseline\` | 過去のM43A比較ソース |
 | `diagnostics\m43a_goodcrc\logs\` | 各試行の生ログ |
 | `diagnostics\m43a_goodcrc\records\` | 実験条件の記録CSV |
 | `PD_PPS_引継ぎ_2026-11-15.md` | 2026-11-15の引き継ぎ資料。**保存場所は未確認** |
@@ -295,4 +324,4 @@ v3は`logs\`の対象ファイルを読み取り、**`analysis\`直下の固定�
 
 ---
 
-**文書の位置付け:** このREADMEはWindows上の`C:\pj\pd_pps\`全体の運用案内です。現在実機に書き込まれたM43AやユーザーPCのファイル配置をこの文書の作成だけで変更したものではありません。
+**文書の位置付け:** このREADMEはWindows上の`C:\pj\pd_pps\`全体の運用案内です。直近の試験対象はM43B-7 P2ですが、この文書の作成だけでPCのファイル・実機FLASH・Git状態を変更したものではありません。

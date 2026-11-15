@@ -1,7 +1,7 @@
 # PD PPS 開発引き継ぎ（チャット切替用）
 
 - 更新日：2026-11-15
-- 文書状態：**Submoduleと診断除外は確認済み。添付README/ROADMAPを基準に統合したルールKIT v05のユーザーPC導入・Gitコミットは未確認**
+- 文書状態：**今回アップロードされた現行README/ROADMAP/HANDOFFにM43B-7 P2までの結果を統合。新KITのWindows適用・Gitコミットは未実施**
 - 正本：`C:\pj\pd_pps\HANDOFF.md`
 
 ## 1. 新しいチャットで最初に読む資料
@@ -19,12 +19,28 @@ PD/PPS Explorer：USB PD/PPSの能力取得、PPS設定、INA226測定、スタ�
 
 - 正式マイルストーン：M0～M3は限定された範囲で**完了**、M4・M5・M7は**進行中**、M6・M8～M10は**未着手**。
 - ハードウェア：WeActStudio CH32X035 CoreBoard、WCH-LinkE、PD Sink用USB-C、PC USB CDC用の別接続。
-- 現在の実機ファームウェア：**M43A**。参照先は`src\pd_pps\firmware\experiments\43a_pd17_phy_baseline`（ローカルの一致は未再確認）。
+- **直近の実機検証版：M43B-7 P2**（`src\pd_pps\firmware\experiments\43b7_p2_session_refactor`。R01～R03の回帰を確認）。M43Aは過去の比較基準。FLASHしたBINの独立ハッシュ確認は別途。
 - 正常動作実績のあるPHY参照元：**PD17 M13b**、`src\pd_pps\firmware\experiments\17_pd_spr_sink_rebuild`。
-- 直近の調査：初回・周期更新Requestの**GoodCRC未受信／再送・失敗**。PC USB接続やCDC通信の影響を切り分ける。
-- **M43Aのファームウェアと配線は現状維持**して比較実験する。
+- 直近の開発：**P0（テスト保護）、P1（重複削除）、P2（責務分離）**の主要実機回帰確認が完了。次はP3（診断の整理・可視化）。GoodCRC未受信と実VBUS低下の根本原因は未解決。
+- **M13b・M43A・M43B-5/6/7を保全**し、P3ではPHY/USBFS ISR/通信時間定数を変更しない。配線変更や不具合修正は別の試験で扱う。
 
 ## 3. 実機で確認したこと
+
+### 現行基準：M43B-7 P2まで（2026-11-15）
+
+| 版／試験 | PC USB | 主な結果 | 判定 |
+|---|---|---|---|
+| M43B5_05 | OFF | GoodCRC一致7回、PPS READY約31.9秒、周期更新6/6 | 通信成功の単独実績 |
+| M43B5_06R1 | ON／CDCアイドル | GoodCRC一致0、CRC_TIMEOUT3回、TX_FAILED、PnP120秒COM16安定 | USB再認識を伴わない既知失敗 |
+| M43B5_07 | OFF | GoodCRC一致・READY約30ms、VBUS_FAULT | PPS長時間安定は未合格 |
+| M43B6 R01/R02/R03 | OFF／ON／CDC | 既知成功・失敗・安全停止の回帰、CDC24/24 PASS | P0/P1主要回帰PASS |
+| **M43B7 R01** | OFF | GoodCRC一致、Accept/PS_RDY/READY24ms、約590msでVBUS_FAULT | P2主要回帰PASS |
+| **M43B7 R02** | ON／CDCアイドル | Request再送2、CRC_TIMEOUT3、TX_FAILED、USBFS IRQ0、READYなし | P2主要回帰PASS（PDは失敗） |
+| **M43B7 R03** | ON／PD切断 | CDCのPING/STAT/COUNT/VBLOG/PDTRACE 24/24 PASS | P2 CDC回帰PASS |
+
+ホストテスト：M43B-6は59件実行・失敗0・スキップ1、M43B-7は67 PASS/1 SKIP。**これは限定条件でのリファクタリング回帰PASSであり、PC USB接続中のPD安定や製品要件の完了ではない**。検証結果と元データSHA-256は`docs/M43B7_P2_VERIFICATION.md`。
+
+### M43A時点の過去の実機記録
 
 | 実験 | CDC接続ラベル | 初回Request | PPS周期更新 | 備考 |
 |---|---|---|---|---|
@@ -37,30 +53,30 @@ PD/PPS Explorer：USB PD/PPSの能力取得、PPS設定、INA226測定、スタ�
 
 実験ログの標準保存先は`C:\pj\pd_pps\diagnostics\m43a_goodcrc\logs\`。ユーザーPC上への配置完了は未確認。診断v3の出力は固定名CSVで、今後のv04規約と異なる。**診断v04はまだ作成・実機導入していない。**
 
-## 4. 仮説（すべて未検証）
+## 4. 事実・未確定の要因
 
-- USBFS割り込み・CDC処理負荷によりGoodCRC受信処理が遅れる。
-- PD送信完了からRX再開までのタイミング余裕が小さい。
-- PCのUSB接続でGND・CC信号品質・コネクタ接触条件が変化する。
-- 充電器・ケーブル・CC向き等のばらつきがある。
+- **観測事実：** PC通信用USBを物理接続したM43B5_06R1/M43B7 R02では初回GoodCRCを認識できず`TX_FAILED`。PC USB物理切断のM43B5_05/07・M43B7 R01では初回GoodCRC一致。ただし05以外は長時間READYを維持していない。
+- **負の証拠：** 06R1のPnP監視ではCOM16/WCH-LinkEは安定。CDCアイドルでUSBFS IRQが0でもGoodCRC失敗を再現。単純なUSBFS ISR競合は十分な説明にならない。
+- **未確定：** PC USBの追加GND/D+/D−/接触条件、CC信号品質、送信後RX復帰、Source側のGoodCRC送出有無、充電器・ケーブル差。
+- **VBUS：** 07/M43B-6/7のREADY直後の低電圧停止はADC実測値と実VBUSがおおむね一致している前提で扱い、精度改善は製品PCBの完成後に回す。実際の低電圧原因は未確定。
 
-まず条件を固定した追加試験を優先し、必要な場合にPDアナライザーやCC波形観測へ進む。
+原因対策はP3リファクタリングとは分け、必要ならPDアナライザー／CC波形を利用する。
 
 ## 5. 次に実施する作業
 
-**試行03：** M43A、CDC **ON**、CC1。同じ充電器・Type-Cケーブル、外部負荷なし。約12秒接続して周期更新を観測。生ログ`M43A_03_ON_CC1.log`。
+1. **今回のコミット：** 現行3文書を基準にした本更新KITを既知SHA-256照合で適用する。M43B-6・M43B-7のソースと、ルートREADME/ROADMAP/HANDOFF、`docs/M43B7_P2_VERIFICATION.md`だけを選択的にGitへステージし、差分確認後にローカルコミットする。
+2. **P3：** M43B-7を基準に診断イベント名・状態遷移の説明を一元管理し、PC側でSRAMとPDログの時系列表示を作る。既存バイナリ診断フォーマットとCDC応答を維持する。P3は**未実装**。
+3. **別系統の検証：** PC USB接続によるGoodCRC失敗、契約後のVBUS低電圧を引き続き切り分ける。ただし当面はADC精度の追加検証をしない。
 
-**試行04：** M43A、CDC **OFF**、CC1。その他は同条件。生ログ`M43A_04_OFF_CC1.log`。
-
-その後、ON/OFF各約10試行まで拡張し、**初回Request**と**周期更新Request**の再送数、GoodCRC、TX_FAILED、`REVIEW`を分けて集計する。診断スクリプトは**実際に導入済みの版**を確認して使う。
+**履歴注記：** 従前のM43A試行03/04・各10試行の指示は、M43A時点の計画であり現在の直近操作ではない。実際に後続M43B系列の試験が実施済み。
 
 ## 6. 保留事項・変更禁止範囲
 
-- 今回の比較中にM13b/M43Aを書き換えたり、根拠なくPD PHYを改修したりしない。
+- M13b/M43A/M43B-5/M43B-6/M43B-7の既存ソースを上書きせず、根拠なくPD PHYを改修しない。
 - Source発Hard Resetの実機試験、長時間連続運転、危険を伴う故障注入は**ユーザーが再開を決めるまで保留**。
-- M43Bは**未作成／未検証**。必要性が確認できた段階で新規実験として検討。
+- M43B-5、M43B-6、M43B-7は**作成済み／短時間実機検証済み**。P3は未作成・未検証。
 - **新Gitルートは`C:\pj\pd_pps`として確立済み**。`ch32fun`をSubmoduleとして固定（`af7c51c`）、`diagnostics/`を全体Git除外（`1eb1add`）した。ソース・測定ログは保全する。
-- GitHubのリモート設定・コミット・Pushは自動では行わない。確認済みのルートGitにはremoteが未登録。ZIPの作成だけではPCへ導入していない。
+- GitHubのリモート設定・コミット・Pushは自動では行わない。**現PCのリモート設定は未確認**。ZIPの作成だけではPCへの適用・コミットを意味しない。
 
 ## 7. この文書の更新方法
 

@@ -2,7 +2,7 @@
 
 > **目的**：USB PD/PPSの実験・測定ツールを開発し、BOOTHで「組み立て済み完成品」と「部品未実装のベアPCB」を同人販売する。
 >
-> **更新日**：2026-11-15　｜　**フェーズ**：技術検証　｜　**現行実機ファームウェア**：**M43A**（`firmware/experiments/43a_pd17_phy_baseline`）　｜　**最優先課題**：PC側USB CDC接続条件と、初回・周期更新RequestのGoodCRC受信失敗／再送回数との関係を比較する。**正式M5（PC制御）とM7（安定性・保護）は進行中**。M13bの正常動作実績とM43Aの現行バイナリを保全する。
+> **更新日**：2026-11-15　｜　**フェーズ**：技術検証　｜　**直近の実機検証版**：**M43B-7 P2**（`firmware/experiments/43b7_p2_session_refactor`）　｜　**最優先課題**：P0/P1/P2の主要回帰確認済みソースをコミットし、次にP3（診断定義とPC側可視化）へ進む。PC USB接続時GoodCRC失敗とREADY後VBUS低下は依然未解決。**正式M5（PC制御）とM7（安定性・保護）は進行中**。M13b・M43A・M43B-5/6/7を保全する。
 
 > **マイルストーン番号の扱い（2026-11-03整理）**：正式な **M5＝PC制御、M6＝独自ファーム更新、M7＝安定性・保護** を維持する。会話内で「M5」と呼んだ15Ω負荷試験、および「M6-T01～M6-T03-B」と呼んだ要求電流試験は、**M7の先行実機検証**として本書に記録する（過去ログの試験IDは変更しない）。既存の番号付き実験フォルダーは改名しない。
 
@@ -35,9 +35,29 @@
 
 ## 2. 現在地（2026-11-15時点）
 
-### 2026-11-15：M43AのPD PHY＋USB CDC比較（正式M5／M7の接点）
+### 2026-11-15：M43B-7 P2の回帰試験完了（正式M5／M7の途中段階）
 
-**現在の実機はM43A**。`firmware/experiments/43a_pd17_phy_baseline`は、正常動作実績があるPD17 **M13b由来のPD PHY**と、M42のUSB CDC・センサー監視機能を統合した比較版である。引き継ぎ記録上、修正版のWindowsビルドが成功（FLASH **22,436B**、RAM **4,552B**）。現在のローカル作業ツリーとビルド済みバイナリの同一性は、このロードマップ更新では再検証していない。
+**現在の比較基準：** `src/pd_pps/firmware/experiments/43b7_p2_session_refactor`。P0/P1はM43B-6、P2はM43B-7として独立した実験フォルダーに実装。M43B-7は`main.c`の責務分離を行い、PD PHY、USBFS ISR、GoodCRC時間条件、CDCコマンド形式、既存SRAMイベント形式を維持する設計。実機のR01/R02/R03で既知動作との回帰を確認した。**実機ファームウェアのBIN SHA-256を別途照合したという意味ではない。**
+
+| 版・試験 | PC USB | 結果 | 判定範囲 |
+|---|---|---|---|
+| M43B5_05_OFF_CC1 | 物理切断 | GOODCRC一致7回、PPS READY約31.9秒、周期更新6/6 | 正常系の単独成功例 |
+| M43B5_06R1_ON_CC1_IDLE_PNP | 接続・CDCアイドル | Requestタイムアウト3回、TX_FAILED、USBFS ISR 0。PnP監視中COM16/WCH-LinkE認識安定 | USB再認識がGoodCRC失敗の必須条件ではない |
+| M43B5_07_OFF_CC1 | 物理切断 | 初回GoodCRC一致・READY約30ms後VBUS_FAULT | USB OFFでも継続安定を保証しない |
+| M43B6_R01/R02/R03 | OFF/ON/CDC単独 | 既知の短時間PD成功→安全停止／GoodCRC失敗、CDC24/24 PASS | P0/P1主要回帰PASS |
+| M43B7_R01_OFF_CC1 | 物理切断 | GoodCRC一致、Accept/PS_RDY/READY、READY24ms、約590msでVBUS_FAULT | P2既知動作との回帰PASS、継続安定は未合格 |
+| M43B7_R02_ON_CC1_IDLE | 接続・CDCアイドル | GoodCRC一致0、CRCタイムアウト3回、再送2、TX_FAILED、USBFS IRQ 0 | P2既知失敗経路との回帰PASS |
+| M43B7_R03_CDC_INDEX | 接続・PD充電器なし | PING/STAT/COUNT/VBLOG/PDTRACE 24/24 PASS | P2 CDCコマンド互換性PASS |
+
+**ホスト確認（M43B-7 P2配布時）：** 67 PASS／1 SKIP。RISC-V32向け変更ファイルのコンパイル確認済み。Windows側の正式ビルド・FLASH記録と実機BINの独立照合はこの文書更新では再実施していない。
+
+**未解決:** PC USB接続時のGoodCRC失敗はUSBFS ISRやCDC転送量だけでは説明できない。USB GND/D+/D−経路・CC信号品質などの物理的因果は未確定。READY直後の実VBUS低下はADC計測値とおおむね一致しているとの確認済み条件で扱い、精度改善はPCB作成後に行う。M5/M7全体の合格ではない。
+
+**記録先:** [`docs/M43B7_P2_VERIFICATION.md`](docs/M43B7_P2_VERIFICATION.md)。元の生ログとSRAMは`diagnostics/`等のローカル保管を維持し、Gitには要約とハッシュを保存する。
+
+### 2026-11-15：M43AのPD PHY＋USB CDC比較（過去の記録）
+
+**M43A時点での実機版はM43Aだった**。`firmware/experiments/43a_pd17_phy_baseline`は、正常動作実績があるPD17 **M13b由来のPD PHY**と、M42のUSB CDC・センサー監視機能を統合した比較版である。引き継ぎ記録上、修正版のWindowsビルドが成功（FLASH **22,436B**、RAM **4,552B**）。現在のローカル作業ツリーとビルド済みバイナリの同一性は、このロードマップ更新では再検証していない。
 
 **確定事項（提示された実機ログ／引き継ぎから）：**
 
@@ -52,7 +72,7 @@
 
 **未確定の原因仮説：** USBFS ISR／CDC転送負荷による受信処理の遅延、PD送信完了からRX復帰までのタイミング、PC接続時のGNDやCC波形品質、コネクタ接触など。`TX_FAILED`の記録だけでは、SourceがGoodCRCを送らなかったのか、Sinkが受信・認識できなかったのかを識別できない。DMM測定だけで物理層の結論を出さず、必要ならPDアナライザーまたはCC波形で確認する。
 
-**直近のゲート：** M43Aを**再書き込みせず**、充電器・Type-Cケーブル・CC向き・無負荷を固定し、CDC OFF/ON各10試行を交互に実施。各セッションの初回とPPS更新を別々に再送0/1/2回成功・TX_FAILED・`REVIEW`で集計する。まず**試行03（ON／CC1）と試行04（OFF／CC1）**を行う。接続時間は更新を2回観測できる約12秒を基本とし、比較する試行は同じ接続維持条件に揃える。既存のログを上書きしない。
+**M43A時点の当初計画（履歴）：** M43Aを**再書き込みせず**、充電器・Type-Cケーブル・CC向き・無負荷を固定し、CDC OFF/ON各10試行を交互に実施。各セッションの初回とPPS更新を別々に再送0/1/2回成功・TX_FAILED・`REVIEW`で集計する。まず**試行03（ON／CC1）と試行04（OFF／CC1）**を行う。接続時間は更新を2回観測できる約12秒を基本とし、比較する試行は同じ接続維持条件に揃える。既存のログを上書きしない。
 
 **診断ログの標準配置：** `C:\pj\pd_pps\diagnostics\m43a_goodcrc\logs\`。記録は同階層の`records\`、解析結果は`analysis\`。**添付の試行01ログはUTF-8として読める一方、試行02の生ログはUTF-16 LE（BOM付き）**のため、解析コードは両方を判定して読み、元ログの文字コードを勝手に変換・上書きしない。既存の診断v3は固定ファイル名に上書きする可能性がある。**今後の診断v04以降の配布**は`pd_pps_zip_rules.md`（v2.3）に従い、版別スクリプト配置・解析結果の実行日時別新規保存・既存データ保護を必須とする。**診断v04はまだ作成・Windows実行検証していない。**
 
@@ -110,7 +130,7 @@
 - [x] **M13eソフトウェア故障注入・ホスト結合テストPASS**：ADC変換未完了（3msタイムアウト）・変換開始失敗、SourceCaps／Request／Accept／PS_RDY待ち、PPS更新中のタイムアウト、TX_FAILEDを計8ケース注入。製品ADC監視・Policy Engine・PHY・停止診断を用いてPD送信/GoodCRC停止、停止原因保全、物理CC再接続での再交渉を検証。既存ホスト回帰15系統、Clang UBSan、M13d Python 12ケースもPASS。**本番FWの変更なし、実機での故障注入は未実施**。
 - [x] **M13f PPS更新・MessageID境界のホスト検証PASS**：旧PEの`defer_until_ms=0`比較による32bit高位領域での更新停止を再現し、`defer_active`で修正。PPS 4,999/5,000ms、WAIT 119/120ms、PE各タイムアウト、32bit折り返し、PHY MessageID 7→0等、Policy 15＋PHY 5の計20ケースPASS。既存を含むシェル17系統、Python 12ケース、Clang UBSanもPASS。**製品コード2ファイル変更。Windows Build/Flash・UGREEN/ダイソー短時間実機は後続試験でPASS**。`docs/M13F_PPS_TIMING_AND_MESSAGE_ID.md`、`docs/M13G_PPS_REJECT_WAIT_STATE_GUARDS.md`参照。
 - [x] **M13g PPS更新REJECT/WAIT反復と状態遷移ガードのホストPASS**：M13fの旧PEで、契約中のREJECT直後に次tickでRequestが再生成されること、未送信RequestへWAIT/REJECTを受けた場合に未送信コマンドが残ることを再現。REJECT時は安全停止、PPS更新WAITは連続3回目で停止（120ms再試行は従来維持）。製品PEの2ファイルを変更。状態遷移18＋実PHY結合2の**20/20 PASS**、既存17シェル系統、Python12件、Clang UBSan PASS。**UGREEN/ダイソーのM13g通常PPS短時間実機PASS。Windows Build/Flashの出力は未提示、未接続heartbeatを確認。REJECT/WAIT異常応答の実機注入は未検証**。`docs/M13G_PPS_REJECT_WAIT_STATE_GUARDS.md`参照。
-- [ ] **M43A GoodCRC受信の不安定要因の切り分け**：初回／更新Requestごとの成功・再送数をCDC ON/OFFで比較。物理的なGoodCRC有無を確認するにはCC波形観測等が必要。
+- [ ] **M43B-7までのGoodCRC不安定原因の確定**：M43B-5～7でPC USB物理接続との相関、USBFS IRQ 0でも初回Request失敗することを観測。CC上のGoodCRCの送出有無、GND/D+/D−寄与の物理的因果は未確定。
 - [ ] Source起因Hard Resetの実機復旧、2回目Hard Reset、ADC故障注入、各種タイムアウトの実機評価。CC1/CC2の正常系と2機種でのPPS維持はM13bで確認済み。
 
 ### 未検証・未実装
@@ -122,7 +142,7 @@
 - [x] **スタンドアロンUIからの基本PPS実要求変更**（M4-Bの確認操作、PS_RDYとBUS追従、REQ変更を実機確認）。ただし製品安全性・全異常系の完了は意味しない。
 - [ ] **製品PC制御APIの統合・検証**：USB CDCによるPC通信自体は実験18～24およびM43Aで実証済みだが、能力取得・PPS設定・計測・状態・安全な操作権制御を単一製品APIとして完成させていない。
 - [ ] ユーザー独自ファームウェアの書き込み・復旧手順。
-- [ ] **M43Aの初回／周期更新RequestにおけるGoodCRC成功率比較**：CDC接続条件を固定して試行を追加し、安定性差の有無と原因候補を切り分ける。
+- [ ] **PC USB ON/OFFのRequest安定性評価**：M43B-5～7で差を観測したが全条件の成功率・更新成功率・物理因果は未確定。初回／周期更新Requestを分けて追加評価する。
 - [ ] **負荷変動・異常条件を含むM7全体の安定性および保護の評価**（15Ω試験とREQ比較は先行検証のみ。短絡・真の過電流・保護性能は未評価）。
 - [ ] 販売用の専用PCB、筐体・端子・製造・検査・商品ページ。
 
@@ -186,9 +206,9 @@
 | M2 | SSD1306表示の実証 | **完了** | `13_oled_ssd1306`（実機Build/Flash、写真、I²C共存、10分以上の安定運転） | 128×64表示とINA226とのI²C共存が安定動作 | 済（2026-11-02） |
 | M3 | EC11・戻るボタンの実証 | **完了**（基本機能） | `14_encoder_ec11`（実機Build/Flash、右/左5クリック、押下/戻る各3回、OLED/INA226/PD共存） | 回転・押下・戻る操作を実機で再現性よく検出 | 済（2026-11-02） |
 | M4 | スタンドアロンUIの実証 | **進行中**（M4-A基本操作合格、M4-B実送信・対象安全操作合格。網羅的な異常系は残る） | `15_oled_encoder_ui`：デモ専用版保全。`16_oled_encoder_pps_control`：実機Build/Flash、7.00→7.10→7.00V、REQ1000↔1050mA、キャンセル・PD切断/再接続・編集ガード等、30分無負荷安定試験、PCテスト13種 | **基本操作は合格**。Source Caps変更・コンソール競合・全負荷回帰等の未実施試験、接続時タイムアウト調査と製品安全評価を別途完了する | — |
-| M5 | PC制御・データ取得 | **進行中**（USB CDC通信、INA226取得、切断後復帰、M43AでのPD/PPS同時動作を個別に確認。PC制御APIは未統合） | 実験18～24（通信基盤）、M42、`43a_pd17_phy_baseline`（M43A：M13b由来PHY＋CDC比較版）。診断ログは`diagnostics/m43a_goodcrc/` | PCからPDO/APDO能力取得・安全なPPS設定・実測値取得・状態取得・記録を単一APIで再現し、PC接続中のPD通信の安定性と競合時動作を確認する | — |
+| M5 | PC制御・データ取得 | **進行中**（USB CDC通信、INA226取得、切断後復帰、M43AのPD/PPS同時動作例、M43B-7でのCDC単独応答を確認。PC制御APIは未統合） | 実験18～24（通信基盤）、M42、`43a_pd17_phy_baseline`、`43b6_p0p1_refactor`、`43b7_p2_session_refactor`。診断ログは`diagnostics/`配下で個別保管 | PCからPDO/APDO能力取得・安全なPPS設定・実測値取得・状態取得・記録を単一APIで再現し、PC接続中のPD通信の安定性と競合時動作を確認する | — |
 | M6 | 独自ファーム書き込み・復旧 | **未着手** | 独自ファーム更新実験（**フォルダー番号未定**。旧仮称`18_firmware_update`は実験18～24の実使用と重なるため採用しない） | 書き込み・更新・失敗時の復旧を手順化し確認 | — |
-| M7 | 安定性・保護 | **進行中**（負荷・Hard Reset先行検証に加え、M43AのGoodCRC受信不安定を調査中。保護全体は未完了） | 15Ω/REQ試験、`17_pd_spr_sink_rebuild`のM13b～M13g実績、`43a_pd17_phy_baseline`、GoodCRC比較の試行01/02ログ。安定性専用実験の番号は未定 | CDC ON/OFFの**初回・更新Request別**成功率・再送数を同条件で比較し、受信不安定の原因を切り分ける。加えて充電器互換性、Source発HR、タイムアウト、負荷変動、ハードウェア保護を評価する。先行2試行だけで通過としない | — |
+| M7 | 安定性・保護 | **進行中**（負荷・Hard Reset先行検証に加え、M43B-5～7でGoodCRCとVBUS異常を切り分け中。保護全体は未完了） | 15Ω/REQ試験、`17_pd_spr_sink_rebuild`のM13b～M13g実績、`43a_pd17_phy_baseline`、`43b5_refresh_irq`、`43b6_p0p1_refactor`、`43b7_p2_session_refactor`、対応するGoodCRC/VBUS診断ログ | CDC ON/OFFの**初回・更新Request別**成功率・再送数を同条件で比較し、受信不安定の原因を切り分ける。加えて充電器互換性、Source発HR、タイムアウト、負荷変動、ハードウェア保護を評価する。先行2試行だけで通過としない | — |
 | M8 | 全機能統合試作 | **未着手** | 製品向け統合実験（**フォルダー番号未定**。旧仮称`20_integrated_prototype`は実験20との重複を避ける） | UIとPC制御、PD交渉、計測が同時に動作 | — |
 | M9 | 共通PCB Rev.A → 製品版 | **未着手** | 回路図・PCB・BOM・試作／改版 | 完成品とベアPCBに共通の設計を評価完了 | — |
 | M10 | 販売準備・BOOTH初回販売 | **未着手** | 製造・検査・説明書・商品ページ | 安全・法令・品質・サポートを確認し2商品を公開 | — |
@@ -220,7 +240,8 @@
 | **済（M4-A基本機能合格）** | `15_oled_encoder_ui` | 監視画面、4件のPDO/APDO閲覧、電圧/要求電流編集・キャンセル・確認。プレビュー専用、実PPS変更は無効 | ホストテスト12種類合格。実機Build/Flash成功、操作画面写真、7.00V/1000mA維持を確認。10分UI連続操作は未実施 |
 | **済（M4-B基本機能合格）** | `16_oled_encoder_pps_control` | OLED/EC11からの実PPS APPLY、表示とINA226 BUS追従、既知の安全ガードを実機検証 | Build/Flash合格、FLASH25,228B・RAM1,564B、ホスト13種類、7.00→7.10→7.00VとREQ変更、対象ガード・30分安定・OLED写真/ログ。元計画の全項目を完了扱いしない |
 | **M7先行（M13c-1／M13c-2とも2充電器短時間実機済）** | `17_pd_spr_sink_rebuild` | CC/PHY/PD通信・PPS周期更新・VBUS低下・Hard Reset復旧を独立検証。M13bで通常運用向け刺激を停止 | UGREEN/ダイソーM13a-7 HRログ、M13b正常系2充電器実機ログ。M13c-1の2充電器短時間実機ログ。**M13c-2 Windows Build/Flash・2機種短時間実機PASS、M13eホスト故障注入8/8、M13f境界ホスト20/20・Windows Build/Flash・2機種通常PPS短時間実機PASS、M13g状態遷移20/20・2機種通常PPS短時間実機PASS、連続試験は別途** |
-| **最優先／継続中（M5・M7）** | `43a_pd17_phy_baseline`（M43A）＋`diagnostics/m43a_goodcrc/` | M13b PHYとM42 CDCの共存、初回・周期更新RequestのGoodCRC成功率／再送数をCDC ON/OFFで切り分ける | M43A Build成功、CDC通信中のPPS成功例、試行01初回＋更新2/2成功、試行02初回成功＋初回更新TX_FAILED。**原因未確定、10試行ずつの比較未完** |
+| **過去の基準（M5・M7）** | `43a_pd17_phy_baseline`（M43A）＋`diagnostics/m43a_goodcrc/` | M13b PHYとM42 CDCの共存、初回・周期更新RequestのGoodCRC成功率／再送数をCDC ON/OFFで切り分ける | M43A Build成功、CDC通信中のPPS成功例、試行01初回＋更新2/2成功、試行02初回成功＋初回更新TX_FAILED。**原因未確定、10試行ずつの比較未完** |
+| **P0～P2完了・P3次工程（M5・M7）** | `43b5_refresh_irq`／`43b6_p0p1_refactor`／`43b7_p2_session_refactor` | USB ON/OFFのGoodCRC診断、P0/P1の重複削減、P2の責務分離を検証済み。P3では診断イベント定義とPC時系列解析を独立実装 | M43B-7 R01/R02既知経路との回帰PASS、R03 CDC24/24 PASS。通信根本原因・PPS長時間安定は未合格 |
 | 4 | `pc_control`（番号未定、旧仮称`17_pc_control`） | USB通信方式、コマンドAPI、Python制御、CSVログ、PC側とPD側の電源分離 | PC制御サンプル、通信仕様、ログ |
 | 5 | `firmware_update`（番号未定、旧`18_firmware_update`） | 独自ファームを書き込む方法、初期化、復旧用デバッグ端子、書き込み失敗時の復帰 | 書き込み／復旧手順と再現試験 |
 | **M7の後続／計画** | `pps_stability_protection`（番号未定、旧`19_pps_stability_protection`） | 15Ω負荷・REQ 500/300mAの先行実測とM43A GoodCRC診断結果を引き継ぎ、互換性・保護設計・負荷変動などを検証 | 先行負荷・通信試験のログあり。**M7全体の合格は未判定**。安全条件を定めて個別評価 |
@@ -287,14 +308,22 @@
 | D18 | PPS更新の32bit時刻境界・WAIT期限管理 | M13fで未設定`defer_until_ms=0`と32bit高位時刻の符号付き差の比較により更新が止まる問題を再現し、`defer_active`で明示管理に変更。5秒周期・120ms待機・期限境界・MessageID 7→0を製品PE/PHYのホストテスト20件で検証 | **ホスト20/20 PASS。Windows Build/Flash、UGREEN/ダイソー短時間通常PPS動作PASS。24.9日経過時の時刻境界そのものは実機未検証。M13gで連続WAIT上限とREJECT無待機再送のガードを追加（ホスト20/20、2機種通常PPS実機回帰PASS。異常応答実機注入は未検証）** |
 | D19 | PPS更新REJECT/WAIT反復・未送信応答時の安全停止 | M13gでM13f旧PEのREJECT直後無待機再送、未送信RequestへのWAIT/REJECT時のコマンド残留を再現・修正。PPS WAIT連続3回目でPE_RECOVERY、再送なし。通常の5秒PPS更新と120ms WAIT待機は維持 | **ホスト状態遷移18/18＋PHY結合2/2 PASS。通常系のUGREEN/ダイソー短時間実機PASS（Windows Build/Flash出力は未提示、heartbeat確認）。実機異常応答注入は未検証** |
 | D17 | HR復旧ゲートBusyの上限と停止原因の記録 | M13c-2で20msの受信再開/コミット待ち上限（実験値）とセッション最初の停止理由スナップショットを追加。正常なケーブル抜去でもVBUS停止理由が残る | **ホストPASS、Windows Build/Flash・2機種正常PPS・切断診断の短時間実機PASS。Hard Reset復旧ゲート異常系は未検証** |
-| D20 | M43A GoodCRC受信の再送・失敗原因 | CDC接続条件下で初回／PPS更新Requestを個別集計。USBFS ISR・PD PHY RX復帰・CC/GND信号品質は仮説。物理的なGoodCRC有無にはアナライザー／波形観測が必要 | **現象は実機確認済み、原因は未確定**。試行01/02で初回成功、試行02更新失敗。各条件10試行と追加切り分け未実施 |
+| D20 | PC USB物理接続とGoodCRC受信失敗 | M43B-5～7でUSB物理接続ON時に初回RequestのGoodCRCタイムアウトを再現。USBFS IRQが0でも失敗し、COM16のPnP認識は安定。USB OFFの05はPPS更新6/6成功、07/M43B-6/7は初回GoodCRC成功後に実VBUS低下で停止 | **接続条件との相関は実測、電気的因果は未確定**。Sourceの送信波形、D+/D−/GND寄与、長時間PPS安定は未検証 |
 | D21 | 診断ログとZIPの保全・再現性 | `diagnostics/`全体をGit除外。新しいZIPは`pd_pps_zip_rules.md`（v2.3）に従い、`pd_pps_`接頭辞なし、ASCIIパス、単一親フォルダー、dry-run、バックアップなし・既存データ保護。個別計画は実験KITの`tests/TEST_PLAN.md`に収録 | **新しい運用方針を決定**。現行診断v3は旧方式。診断v04のWindows実行検証は未実施 |
 
 決定時には、選択肢・決定内容・根拠・日付をこの表に反映する。必要なら `docs/` に詳細な設計判断記録（ADR）を追加する。
 
 ## 7. 直近のアクション
 
-### 最優先：M43A GoodCRC切り分け（2026-11-15現在）
+### 最優先：M43B-7 P2のGit保存とP3準備（2026-11-15現在）
+
+- [x] M43B-6 P0/P1：ポリシー契約破棄とCDCインデックス解析の共通化。ホスト比較とR01/R02/R03主要回帰PASS。
+- [x] M43B-7 P2：`main.c`責務分離。R01 USB OFF／R02 USB ONの既知経路比較、R03 CDC 24/24 PASS。
+- [ ] **本コミット:** M43B-6/M43B-7ソース、ルートREADME/ROADMAP/HANDOFF、検証記録だけを選択的にステージし、差分を確認してローカルコミットする。GitHub Pushは別作業。
+- [ ] **P3:** 検証済みM43B-7を保全し、診断イベント定義の一元化・数値コード名・PC側時系列表示を新しい実験版で設計する。PD PHY/USBFS ISR/タイミング定数/SRAM形式の互換性を維持。
+- [ ] **別課題:** USB物理接続とGoodCRCの電気的原因、PPS READY後実VBUS低下の原因を追跡する。ADC精度校正は製品PCB後に実施する。
+
+### M43A時点のGoodCRC追加比較計画（当時の未実施案・履歴）
 
 - [x] M13bを正常動作実績のあるPD PHY基準として選び、M43A（M13b由来PHY＋M42 CDC）の現在の実機結果を整理する。M13b/M43Aソース・配線をこの段階で変更しない。
 - [x] **試行01：CDC OFF／CC1**。初回Request再送0回成功、PPS更新2/2成功、READY 11,386ms、TRACE欠落0。生ログを取得。
@@ -349,6 +378,7 @@
 
 | 日付 | 対象 | 結果・判断 | 次のアクション |
 | --- | --- | --- | --- |
+| 2026-11-15 | **M43B-7 P2リファクタリング回帰確認・文書更新** | M43B-6 P0/P1はR01/R02で既知挙動と整合、R03 CDC24/24。M43B-7 P2はR01 GoodCRC一致→READY24ms→VBUS_FAULT、R02 GoodCRC3窓CRC_TIMEOUT→TX_FAILED、R03 CDC24/24。ホスト67 PASS/1 SKIP。**P0～P2の主要回帰PASS**であり通信安定の合格ではない。 | 選択的Gitコミットで区切り、P3の診断可視化を独立作業にする。実機FW/BINの独立照合とPushは未実施 |
 | 2026-11-15 | **Git Submodule・診断除外とルール整理方針** | ルートGitは`C:\pj\pd_pps`へ移行済み。`ch32fun`は`af7c51c`でSubmodule登録、`diagnostics/`は`1eb1add`で全体をGit除外。全体TEST_PLANを本書へ、個別TEST_PLANを実験用KIT ZIPへ、ZIP規約文書は固定名`pd_pps_zip_rules.md`へ統一する方針を確認。**今回のルールKITのWindows導入・Gitコミットは未確認** | 現行README/ROADMAPを基準にしたKITをdry-run→差分確認→明示的に適用。旧TEST_PLANや旧版ルールは自動削除しない |
 | 2026-11-15 | **チャット開発ルールとGit管理の再設計** | チャット中心の一貫した開発を目的に`DEVELOPMENT_RULES.md`、`HANDOFF.md`、ZIP規約v2を整備。Gitルートを`C:\pj\pd_pps`へ移し、旧`src\pd_pps`のGit履歴は保持を必須としない方針。既存ソースと実験ログは保全し、ビルド再確認は後回し可。**配布パッケージ作成はローカルPCへのインストールやGit移行の完了を意味しない** | ZIPをProjectRootに一時保存してdry-run→`-Apply`。Git移行もdry-run→`-Apply`で明示実施。GitHub接続とCommit/Pushは別途判断 |
 | 2026-11-15 | **M43A 試行02／CDC ON・CC1／M5・M7** | 提示ログで初回Requestは`code=12→4→10`、再送0回でPPS 7V／要求1A契約。約5秒後のPPS更新は`code=12→4→13→4→13→4→14`、GoodCRC未受信として再送2回後`TX_FAILED`。`refresh_started=1`／`refresh_done=0`、READY 5,000ms、`source_hr=0`、`vbus_loss=0`、TRACE/イベント欠落0。`STOP reason=4`が切断検出より前で、**契約中の通信失敗**を示す | ファーム・配線を変更せず試行03（ON）、04（OFF）を追加。初回と更新Requestを独立集計 |
@@ -437,11 +467,12 @@ git diff --cached --stat
 - [`src/pd_pps/firmware/experiments/15_oled_encoder_ui/`](src/pd_pps/firmware/experiments/15_oled_encoder_ui/)：M4-A UIプレビュー版（実要求変更なし）。
 - [`src/pd_pps/firmware/experiments/16_oled_encoder_pps_control/`](src/pd_pps/firmware/experiments/16_oled_encoder_pps_control/)：M4-B実PPS制御の基本機能確認版。
 - [`src/pd_pps/firmware/experiments/17_pd_spr_sink_rebuild/`](src/pd_pps/firmware/experiments/17_pd_spr_sink_rebuild/)：M13b～M13gの過去PD17実験とM13bの実績あるPHY参照元。
-- `src/pd_pps/firmware/experiments/43a_pd17_phy_baseline/`：**現行M43A**。M13b PHYをM42のCDC/センサー監視と統合した比較版。
+- `src/pd_pps/firmware/experiments/43a_pd17_phy_baseline/`：**履歴版M43A**。M13b PHYをM42のCDC/センサー監視と統合した比較版。
 - [`src/pd_pps/dev-workspace/`](src/pd_pps/dev-workspace/)：Git管理のBuild/Flash/ログ補助スクリプト。
 - [`src/pd_pps/docs/HARDWARE_WIRING.md`](src/pd_pps/docs/HARDWARE_WIRING.md)：現物配線と安全上の注意。
-- `diagnostics/m43a_goodcrc/logs/`：M43A比較実験の生ログ（試行01/02を確認）。
+- `diagnostics/m43a_goodcrc/logs/`：M43A比較実験の生ログ（当時の記録）。
 - `diagnostics/m43a_goodcrc/analysis/`・`records/`：集計結果と試行条件記録。存在・中身はPC上で確認。
+- [`docs/M43B7_P2_VERIFICATION.md`](docs/M43B7_P2_VERIFICATION.md)：M43B-5～7のUSB ON/OFF比較、P0～P2の回帰判定と生ログハッシュ。
 - [`pd_pps_zip_rules.md`](pd_pps_zip_rules.md)：ファームウェア／診断／ルールZIPの現行規約（文書版v2.3、固定名）。
 - `docs/PRODUCT_SPEC.md`：製品仕様の正本。保持し、要求・設計判断を随時反映する。
 
