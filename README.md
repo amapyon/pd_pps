@@ -3,34 +3,36 @@
 CH32X035F8U6（WeActStudio CH32X035 CoreBoard V1.0）を使用した、USB Power Delivery（USB PD）／Programmable Power Supply（PPS）Sink開発の**ローカル開発環境ルート**です。
 
 - **配置先:** `C:\pj\pd_pps\README.md`（このファイル）
-- **Git運用の移行先:** `C:\pj\pd_pps`を単一のリポジトリルートとする（移行スクリプトの適用後）
+- **Git管理ルート:** `C:\pj\pd_pps`（移行済み、ブランチ`main`）
 - **更新基準日:** 2026-11-15
 - **現在の実機ファームウェア:** **M43A**
 - **直近の調査テーマ:** PD Request送信後のGoodCRC受信不安定（初回RequestとPPS周期更新を区別して調査）
 - **原則:** 動作実績のあるM13bおよび現在のM43Aは保全し、原因を切り分けるまでファームウェアと基板配線を不用意に変更しない。
 
-> このREADMEは、開発環境とチャット連携の入口です。**Gitの新しいルートは本ディレクトリ**です。ただしZIPを配布しただけではGit移行は行われません。ソース側READMEは旧リポジトリ構造で記載された部分があるため、Git境界については本書と`DEVELOPMENT_RULES.md`を優先してください。ファームウェア実験とVS Codeタスクの詳細は [`src/pd_pps/README.md`](src/pd_pps/README.md) を参照します。
+> このREADMEは、開発環境とチャット連携の入口です。**単一Gitルートは本ディレクトリに確立済み**です。`src/pd_pps/ch32fun`はSubmoduleとして登録済みです。今回のルールZIPの配布・展開はWindows上での適用やGitコミットを意味しません。詳細な実験・ビルド手順は [`src/pd_pps/README.md`](src/pd_pps/README.md) を参照します。
 
 ## 1. ディレクトリの役割
 
-以下は**Git移行・ルール配置後の目標構成**です。存在するファイルを網羅した実ディスク一覧ではありません。ZIP展開だけでは以下のGit状態にはなりません。
+以下は**現在のGit構成とルール適用後の標準配置**を示した概略です。存在するファイルを網羅した実ディスク一覧ではありません。
 
 ```text
 C:\pj\pd_pps\
-├── .git\                              # Git移行を明示的に適用した場合のみ作成
+├── .git\                              # Gitルート（確立済み）
 ├── .gitignore                         # 開発ツールと生ログを除外
 ├── README.md                          # 本書
 ├── ROADMAP.md                         # 製品のマイルストーン（正本）
 ├── DEVELOPMENT_RULES.md              # 開発とチャットの共通規約
 ├── HANDOFF.md                        # 次チャットへ引き継ぐ最新状態
-├── pd_pps_zip_rules_v2.md            # 成果物ZIP作成規約
-├── scripts\project\                  # ルール検証・Git移行補助スクリプト
+├── pd_pps_zip_rules.md               # 成果物ZIP作成規約（固定名）
+├── .gitmodules                        # ch32funのSubmodule設定
+├── docs\                            # 製品仕様と資料（規格資料等はGit管理外）
+│   └── PRODUCT_SPEC.md                # 製品仕様の正本（維持・随時更新）
 ├── tools\                           # xPackのRISC-V GCC / Makeなど（Git管理外）
 ├── src\
 │   └── pd_pps\                     # 新リポジトリ内の通常のソースフォルダー
 │       ├── README.md                # ソース側の詳細な開発・実験手順
 │       ├── .vscode\tasks.json       # VS Codeタスク
-│       ├── ch32fun\                 # 旧サブモジュール。移行後はソースを通常管理する想定
+│       ├── ch32fun\                 # Git Submodule（cnlohr/ch32fun）
 │       ├── dev-workspace\           # Build / Flash / ログ取得の補助スクリプト
 │       │   └── pd-pps.ps1
 │       ├── docs\                    # 回路・配線・検証記録
@@ -38,7 +40,7 @@ C:\pj\pd_pps\
 │           └── experiments\
 │               ├── 17_pd_spr_sink_rebuild\   # M13bの実績あるPD PHYの参照元
 │               └── 43a_pd17_phy_baseline\   # M43A（現在の比較対象）
-└── diagnostics\                     # 実測・解析・記録（Gitの追跡から除外する部分あり）
+└── diagnostics\                     # 実測・解析・記録（ディレクトリ全体をGit除外）
     └── m43a_goodcrc\
         ├── logs\                    # 試行ごとのWCH-LinkE生ログ
         ├── analysis\                # GoodCRC / Request集計結果
@@ -50,23 +52,27 @@ C:\pj\pd_pps\
 
 | 保存場所 | 役割 | 管理上の注意 |
 |---|---|---|
-| `src\pd_pps\` | ソースコード、Makefile、開発スクリプト | **ルートGit**で必要なファイルのみコミット。従来の内側`.git`は明示的な移行で除去する |
+| `src\pd_pps\` | ソースコード、Makefile、開発スクリプト | **ルートGit**で管理（旧内側Gitは移行済み） |
+| `src\pd_pps\ch32fun\` | `cnlohr/ch32fun`外部依存 | **Git Submodule**として指定コミットを管理 |
+| `docs\PRODUCT_SPEC.md` | 製品仕様の正本 | 削除せず、要件や設計判断の変更に合わせ随時更新 |
+| `ROADMAP.md` | 全体試験計画の正本 | M0～M10の横断的なゲートと結果・未実施事項を記録 |
+| 実験用KIT ZIP | 実験個別の試験計画 | ZIP内`tests/TEST_PLAN.md`に収録 |
 | `tools\` | ローカルのコンパイラ等 | Gitリポジトリに含めない |
-| `diagnostics\` | ログ、CSV、試行記録、解析スクリプト | 元ログを保全。ソースと混在させない |
+| `diagnostics\` | ログ、CSV、試行記録、解析スクリプト | **全体をGit除外**。元ログを保全 |
 | ルートの`README.md`・`ROADMAP.md`・規約・`HANDOFF.md` | 開発方針の正本 | **ルートGit**で管理する。旧内側Gitから履歴移行は行わない |
 
 以前使用していたルート直下の`pd_pps.code-workspace`や`pd-pps.ps1`は**旧運用**に由来します。現行の標準は`src\pd_pps`自体をVS Codeで開き、リポジトリ内の`dev-workspace\pd-pps.ps1`を使用する方法です。旧ファイルが存在しても、現行手順の前提にはしません。
 
-## 1.1 チャット中心開発の正本・Git移行
+## 1.1 チャット中心開発の正本・現在のGit構成
 
 - `DEVELOPMENT_RULES.md`：実験・変更・検証・チャット進行の共通規約。
 - `ROADMAP.md`：製品目的とM0～M10マイルストーンの正本。
 - `HANDOFF.md`：現在のファームウェア、直近の実験結果、仮説、次の作業。
-- `pd_pps_zip_rules_v2.md`：ファームウェア・診断・ルールZIPの配布規約。
+- `pd_pps_zip_rules.md`：ファームウェア・診断・ルールZIPの配布規約（バージョンをファイル名に含めない）。
 
 新しいチャットでは**この4ファイルの最新内容を参照**します。ChatGPTはWindows上のローカルファイルを自動読取できるとは限らないため、必要な場合は添付してください。今回のルール配布ZIPは一時的に`C:\pj\pd_pps`へ保存し、`install.ps1`で配置します。配布物を作成しただけでPCへ反映済みとはみなしません。
 
-**Git移行方針：** `C:\pj\pd_pps`を唯一のリポジトリルートとし、`src\pd_pps`にある旧`.git`の履歴保持は必須にしません。`scripts\project\Initialize-Root-Git.ps1`で予定を確認後、`-Apply`を明示して移行します。**移行ではコード・実測ログを削除せず、Git管理メタデータだけを削除します。** Gitへの追加・コミット・GitHubへのPushは別の操作です。バックアップは作成しません。GitHubの古い履歴を自動で上書きしません。
+**Git移行結果：** `C:\pj\pd_pps`が唯一の親Gitルートです。`src\pd_pps`の独立した旧Gitメタデータは移行済み、`ch32fun`はSubmodule（登録コミット`af7c51c`）です。`diagnostics/`の全体Git除外は`1eb1add`でコミット済みです。**移行スクリプトの再実行は不要**です。旧GitHub履歴の上書きやPushは未実施で、別途判断します。バックアップは自動作成しません。
 
 既存のソース側`src\pd_pps\README.md`に残る「Gitリポジトリが`src\pd_pps`にある」という記述は旧運用です。ソース側READMEの内容を無条件に書き換えることはせず、必要な開発段階で整合させます。リポジトリ移行時点で旧コードがコンパイルできなくても、移行作業の失敗とは扱いません。
 
@@ -80,7 +86,7 @@ C:\pj\pd_pps\
 | ビルド | RISC-V GCC、GNU Make（xPack） |
 | 書き込み・デバッグ | WCH-LinkE、ch32fun `minichlink` |
 | コマンド実行 | Windows PowerShell 5.1 |
-| Git管理のルート（移行後） | `C:\pj\pd_pps`。旧GitHub: <https://github.com/amapyon/pd_pps>（新しい履歴との接続方法は未確定） |
+| Git管理ルート | `C:\pj\pd_pps`（移行済み）。旧GitHub: <https://github.com/amapyon/pd_pps>（新ルートGitのリモートは未設定、Push未実施） |
 
 ソース側READMEによる既知のツール配置例：
 
@@ -124,7 +130,7 @@ M43Aでは過去にエントリファイルの`#include "src/main.c"`が欠け�
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\pj\pd_pps\src\pd_pps\dev-workspace\pd-pps.ps1" -Action Flash -Project firmware/experiments/43a_pd17_phy_baseline
 ```
 
-**注意:** FlashはMCUの既存ファームウェアを上書きします。現在のGoodCRC比較実験では、M43Aを**書き換えない**方針です。書き込みを実施する場合は、対象ソース、現在のM43Aのバックアップ、PD電源・配線、負荷条件を確認し、`minichlink -T`のログ端末を終了してください。
+**注意:** FlashはMCUの既存ファームウェアを上書きします。現在のGoodCRC比較実験では、M43Aを**書き換えない**方針です。書き込みを実施する場合は、対象ソース、現在のM43Aへ戻すための復旧手段、PD電源・配線、負荷条件を確認し、`minichlink -T`のログ端末を終了してください。
 
 ## 4. ハードウェアと接続
 
@@ -244,16 +250,17 @@ v3は`logs\`の対象ファイルを読み取り、**`analysis\`直下の固定�
 
 **v3の制約:** 解析結果の固定名CSVは再解析で上書きされる可能性があります。後から比較する場合は、解析前に既存の`analysis\`を別名で保管してください。ログ品質が`REVIEW`の試行は、TRACE欠落・不完全ログなどを個別確認し、成功率へ無条件に算入しません。
 
-### 6.4 今後のZIP配布規約（v04以降）
+### 6.4 今後のZIP配布規約（新規KIT）
 
-2026-11-15制定の旧規約v1.0を、**`pd_pps_zip_rules_v2.md`（v2.0）に改訂**しました。新しい規約はファームウェア・診断・ルールZIPに適用します。これは**現在の診断v3が新規約に準拠済みという意味ではありません**。
+新規配布KITには**[`pd_pps_zip_rules.md`](pd_pps_zip_rules.md)（文書版v2.3）**を適用します。ルール文書は固定名で更新し、配布ZIPの名前だけに版番号を付けます。**診断v3は新規約に準拠済みという意味ではありません**。
 
-- ZIP名は`pd_pps_<fw|diag|rules>_<module>_vNN_YYYYMMDD.zip`、ZIP内部のファイル名はASCIIのみ。
-- ZIP内部は単一の親フォルダーとし、`README.md`、`CHANGELOG.md`、`manifest.json`、`install.ps1`を必須にする。
-- インストーラーは既定でdry-run、`-Apply`で配置。既存内容は一致した旧基準ハッシュの場合のみ更新し、差異がある場合は中止（明示的`-ReplaceExisting`でのみ上書き）。**バックアップは作成しない。**
-- 診断スクリプトは`diagnostics\m43a_goodcrc\scripts\vNN\`へ版別に配置。
-- 生ログはそのまま保護し、解析結果は`analysis\YYYYMMDD_HHMMSS\`に新規保存。
-- ビルド、PowerShell実行、実機動作は**別々の検証項目**として報告。
+- 新しいZIP名は`<fw|diag|rules>_<module>_vNN_YYYYMMDD.zip`。**先頭に`pd_pps_`を付けない**。既発行ZIPは改名しない。
+- ZIP内部はASCIIパス・単一親フォルダーとし、`README.md`、`CHANGELOG.md`、`manifest.json`、`install.ps1`を必須にする。**実験用KIT（fw/diag）では`tests/TEST_PLAN.md`も必須**。
+- インストーラーは既定でdry-run、`-Apply`を明示して配置。既存ファイルの未知の差分はCONFLICTとして停止し、バックアップ・自動削除はしない。
+- 診断スクリプトは`diagnostics\m43a_goodcrc\scripts\vNN\`へ版別に配置し、生ログは保護する。解析結果は`analysis\YYYYMMDD_HHMMSS\`へ新規保存。
+- **全体のテスト計画とマイルストーンのゲートはルート`ROADMAP.md`へ集約**し、独立した`M*_TEST_PLAN.md`は新規作成しない。既存の計画書は、必要内容を対応するKITへ収録したことを確認してからユーザーが別操作で整理する。
+- 製品仕様`docs/PRODUCT_SPEC.md`は保持して随時更新する。`diagnostics/`は全体をGit管理外とする。
+- ビルド、PowerShell実行、実機動作、Gitコミット、Pushは**別々の検証項目**として報告。
 
 旧v3のインストーラーは同名スクリプトを強制コピーする処理があり、v04以降の安全なインストール方式とは異なります。**既にv3を導入済みなら、通常のログ取得や解析のために旧インストーラーを再実行する必要はありません。**
 
@@ -278,7 +285,9 @@ v3は`logs\`の対象ファイルを読み取り、**`analysis\`直下の固定�
 | `diagnostics\m43a_goodcrc\logs\` | 各試行の生ログ |
 | `diagnostics\m43a_goodcrc\records\` | 実験条件の記録CSV |
 | `PD_PPS_引継ぎ_2026-11-15.md` | 2026-11-15の引き継ぎ資料。**保存場所は未確認** |
-| [`pd_pps_zip_rules_v2.md`](pd_pps_zip_rules_v2.md) | 最新のZIP規約v2.0（このルールZIPを適用した後の正本） |
+| [`pd_pps_zip_rules.md`](pd_pps_zip_rules.md) | **現行ZIP規約の固定ファイル名**（文書版v2.3） |
+| `docs/PRODUCT_SPEC.md` | 継続管理する製品仕様の正本。今回のKITでは変更しない |
+| [`ROADMAP.md`](ROADMAP.md) | 全体テスト計画とM0～M10の受入ゲートの正本 |
 | [`DEVELOPMENT_RULES.md`](DEVELOPMENT_RULES.md) | チャット・検証・変更管理ルール |
 | [`HANDOFF.md`](HANDOFF.md) | 新しいチャットに渡す現在の状態 |
 

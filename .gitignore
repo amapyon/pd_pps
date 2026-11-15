@@ -47,3 +47,6 @@ Thumbs.db
 
 # Legacy workspace (standard workspace is src/pd_pps)
 /pd_pps.code-workspace
+
+# Legacy versioned rule documents
+/pd_pps_zip_rules_v*.md

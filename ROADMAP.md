@@ -6,7 +6,7 @@
 
 > **マイルストーン番号の扱い（2026-11-03整理）**：正式な **M5＝PC制御、M6＝独自ファーム更新、M7＝安定性・保護** を維持する。会話内で「M5」と呼んだ15Ω負荷試験、および「M6-T01～M6-T03-B」と呼んだ要求電流試験は、**M7の先行実機検証**として本書に記録する（過去ログの試験IDは変更しない）。既存の番号付き実験フォルダーは改名しない。
 
-このファイルは、**方針A（実験フォルダーを残し、番号を増やして検証を続ける）**で開発進捗を管理するためのものです。**配置先は `C:\pj\pd_pps\ROADMAP.md`（ルートGitへ移行後は管理対象）**。移行スクリプトを適用するまでGit管理済みと仮定しない。実機結果に基づきチェックボックス・進捗表・検証記録を更新します。ルートGitへ移行後は本ファイルをそのまま追跡し、ソース側への複製は不要です。旧Git履歴の継承やGitHubへのPushは自動では行いません。
+このファイルは、**方針A（実験フォルダーを残し、番号を増やして検証を続ける）**で開発進捗を管理するためのものです。**配置先は `C:\pj\pd_pps\ROADMAP.md`（単一Gitルートの正本）**。実機結果に基づきチェックボックス・進捗表・検証記録を更新し、**M0～M10の横断的な試験計画・受入ゲート・未実施事項を本書へ集約**します。個別実験の詳細な試験計画は実験KIT ZIP内`tests/TEST_PLAN.md`へ収録します。ソース側への複製は不要です。GitHubへのPushは自動では行いません。
 
 ## 1. 製品の方向性（決定済み）
 
@@ -54,7 +54,7 @@
 
 **直近のゲート：** M43Aを**再書き込みせず**、充電器・Type-Cケーブル・CC向き・無負荷を固定し、CDC OFF/ON各10試行を交互に実施。各セッションの初回とPPS更新を別々に再送0/1/2回成功・TX_FAILED・`REVIEW`で集計する。まず**試行03（ON／CC1）と試行04（OFF／CC1）**を行う。接続時間は更新を2回観測できる約12秒を基本とし、比較する試行は同じ接続維持条件に揃える。既存のログを上書きしない。
 
-**診断ログの標準配置：** `C:\pj\pd_pps\diagnostics\m43a_goodcrc\logs\`。記録は同階層の`records\`、解析結果は`analysis\`。**添付の試行01ログはUTF-8として読める一方、試行02の生ログはUTF-16 LE（BOM付き）**のため、解析コードは両方を判定して読み、元ログの文字コードを勝手に変換・上書きしない。既存の診断v3は固定ファイル名に上書きする可能性がある。**今後の配布v04以降**は`pd_pps_zip_rules_v2.md`に従い、版別スクリプト配置・解析結果の実行日時別新規保存・既存データ保護を必須とする。**v04はまだ作成・Windows実行検証していない。**
+**診断ログの標準配置：** `C:\pj\pd_pps\diagnostics\m43a_goodcrc\logs\`。記録は同階層の`records\`、解析結果は`analysis\`。**添付の試行01ログはUTF-8として読める一方、試行02の生ログはUTF-16 LE（BOM付き）**のため、解析コードは両方を判定して読み、元ログの文字コードを勝手に変換・上書きしない。既存の診断v3は固定ファイル名に上書きする可能性がある。**今後の診断v04以降の配布**は`pd_pps_zip_rules.md`（v2.3）に従い、版別スクリプト配置・解析結果の実行日時別新規保存・既存データ保護を必須とする。**診断v04はまだ作成・Windows実行検証していない。**
 
 > **2026-11-12追補（正式M5）**：実験18～24でUSB CDC通信・INA226取得・切断後の自動再接続を段階的に実機確認。実験24は切断3回から復帰しMEASURE 100/100件を取得（[検証記録](src/pd_pps/docs/M8_USB_CDC_RECOVERY_VERIFICATION.md)）。**正式M5は進行中**：製品PC APIからのPDO/APDO取得・PPS設定、操作権競合、Pythonクライアントは未統合。実験内部のM8Fは正式M8ではない。
 
@@ -193,6 +193,21 @@
 | M9 | 共通PCB Rev.A → 製品版 | **未着手** | 回路図・PCB・BOM・試作／改版 | 完成品とベアPCBに共通の設計を評価完了 | — |
 | M10 | 販売準備・BOOTH初回販売 | **未着手** | 製造・検査・説明書・商品ページ | 安全・法令・品質・サポートを確認し2商品を公開 | — |
 
+### 3.1 全体テスト計画とマイルストーン横断ゲート（正本）
+
+**本節は独立した`M*_TEST_PLAN.md`に代わる全体計画**であり、実験固有の詳細な手順・合否基準は各実験KIT ZIP内の`tests/TEST_PLAN.md`に記載する。マイルストーンの状態は上表を正本とし、過去に実施した試験ID・測定値・実測ログは改名せず残す。
+
+| 区分 | 横断的に確認すること | 完了の証拠・繰越条件 |
+| --- | --- | --- |
+| M0～M3：基礎機能 | PD/PPS交渉、INA226計測・I²C共存、SSD1306表示、EC11/戻る操作 | 実機で確認した限定範囲を記録。計測精度の確定、長時間耐久はM7/M9へ繰越 |
+| M4～M6：操作とPC制御 | UI操作の取消・確定、実PPS変更、CDC通信、製品PC API、切断復帰、ファーム更新・復旧 | 正常系・競合・失敗後の安全状態を区別。現時点のPC APIや更新手順は未完了 |
+| M7：通信安定性・保護 | 初回／周期更新RequestのGoodCRC、再送と失敗、複数充電器、CC切断、タイムアウト、Hard Reset、負荷・保護 | CDC ON/OFF各条件で初回と更新を別集計。未実施の故障注入や保護機能を合格扱いしない |
+| M8～M10：統合・製品化 | UI・PC・PD・測定の同時動作、製品PCBの計測性能、製造・出荷検査、資料、品質・法令 | 製品仕様`docs/PRODUCT_SPEC.md`と照合し、完成品とベアPCB双方の受入条件を確認 |
+
+**記録の共通項目：**試験ID、対象版とハッシュ（取得可能な場合）、機材・配線、充電器／ケーブル／CC向き、負荷・安全条件、操作・実測値、証拠保存先、PASS/FAIL/REVIEW、未実施・保留理由、次の判断。比較実験は原則として一度に一因子だけ変える。GoodCRC試験では初回Requestと周期更新Requestを別集計する。`diagnostics/`全体はGit除外で、生ログのバイト列は維持する。
+
+**運用：**個別実験の計画は実験用KIT ZIP作成時に`tests/TEST_PLAN.md`へ同梱する。試験計画の存在は試験実施や合格の証拠ではない。旧`M1_TEST_PLAN.md`等の独立ファイルは整理・削除対象だが、必要内容が対応KIT ZIPに収録済みであることを確認した後、ユーザーが別操作で対応する。今回のルールKITは削除しない。製品仕様`docs/PRODUCT_SPEC.md`は保持し、仕様が変わったときに更新する。
+
 ## 4. 実験バックログ（フォルダー名は仮称）
 
 既存の `01_...` ～ `16_oled_encoder_pps_control` は改名せず残し、実際に使用中の**`17_pd_spr_sink_rebuild`**を追加した。これまで「`17_pc_control`」としていた名称は**未作成の計画上の仮称**だったため取り消し、PC制御の新規フォルダー番号を未定とする。**正式M5=PC制御、M6=独自ファーム更新というマイルストーン番号は変更しない**。各フォルダーに目的・接続・実行手順・検証結果を記録する。`12_ina226_current_test` のフォルダー作成は未確認であり、**測定機能の確認完了とフォルダーの作成完了を混同しない**。`16_oled_encoder_pps_control` はM4-Bの実機検証済み基準版として保全する。PD17のM8～M13gは正式M8等と別の実験内段階名である。**実験18～24はUSB CDC関係の実験として使用済み**のため、旧計画の`18_firmware_update`／`19_pps_stability_protection`／`20_integrated_prototype`は新規実験の確定パスとして用いず、必要時に空き番号を再採番する。M42／M43AはPC CDCとPD/PPSの統合・安定性を切り分ける**途中段階**であり、M5完了や正式M8統合試作完了を意味しない。
@@ -273,7 +288,7 @@
 | D19 | PPS更新REJECT/WAIT反復・未送信応答時の安全停止 | M13gでM13f旧PEのREJECT直後無待機再送、未送信RequestへのWAIT/REJECT時のコマンド残留を再現・修正。PPS WAIT連続3回目でPE_RECOVERY、再送なし。通常の5秒PPS更新と120ms WAIT待機は維持 | **ホスト状態遷移18/18＋PHY結合2/2 PASS。通常系のUGREEN/ダイソー短時間実機PASS（Windows Build/Flash出力は未提示、heartbeat確認）。実機異常応答注入は未検証** |
 | D17 | HR復旧ゲートBusyの上限と停止原因の記録 | M13c-2で20msの受信再開/コミット待ち上限（実験値）とセッション最初の停止理由スナップショットを追加。正常なケーブル抜去でもVBUS停止理由が残る | **ホストPASS、Windows Build/Flash・2機種正常PPS・切断診断の短時間実機PASS。Hard Reset復旧ゲート異常系は未検証** |
 | D20 | M43A GoodCRC受信の再送・失敗原因 | CDC接続条件下で初回／PPS更新Requestを個別集計。USBFS ISR・PD PHY RX復帰・CC/GND信号品質は仮説。物理的なGoodCRC有無にはアナライザー／波形観測が必要 | **現象は実機確認済み、原因は未確定**。試行01/02で初回成功、試行02更新失敗。各条件10試行と追加切り分け未実施 |
-| D21 | 診断ログとZIPの保全・再現性 | `C:\pj\pd_pps\diagnostics`にログ／解析／記録を分離。今後は`pd_pps_zip_rules_v2.md`に従いASCIIパス、単一親フォルダー、dry-run、明示的上書き、バックアップなし・既存データ保護を実施。ルールZIPは`rules`型 | **v2規約文書を作成**。現行診断v3は旧方式。v04のWindows実行検証は未実施 |
+| D21 | 診断ログとZIPの保全・再現性 | `diagnostics/`全体をGit除外。新しいZIPは`pd_pps_zip_rules.md`（v2.3）に従い、`pd_pps_`接頭辞なし、ASCIIパス、単一親フォルダー、dry-run、バックアップなし・既存データ保護。個別計画は実験KITの`tests/TEST_PLAN.md`に収録 | **新しい運用方針を決定**。現行診断v3は旧方式。診断v04のWindows実行検証は未実施 |
 
 決定時には、選択肢・決定内容・根拠・日付をこの表に反映する。必要なら `docs/` に詳細な設計判断記録（ADR）を追加する。
 
@@ -285,7 +300,7 @@
 - [x] **試行01：CDC OFF／CC1**。初回Request再送0回成功、PPS更新2/2成功、READY 11,386ms、TRACE欠落0。生ログを取得。
 - [x] **試行02：CDC ON／CC1**。初回Request再送0回成功、最初の更新で再送2回後TX_FAILED、READY 5,000ms、Source HR 0、VBUS低下検出0、TRACE欠落0。生ログを取得。
 - [x] 試行ログから**初回と更新Requestを別に解析する必要性**を確定し、診断v3と保存先`diagnostics/m43a_goodcrc/`を案内した。ただしv3スクリプトの**Windows実行成否は未確認**。
-- [x] **ZIP作成規約 v1.0**を策定し、2026-11-15にv2.0へ改訂。`rules`型・ルートGit・バックアップなしの明示的適用を追加（旧ZIPは変更しない）。
+- [x] **ZIP作成規約 v1.0**を策定した当時の実績。2026-11-15以降の新規配布には固定名`pd_pps_zip_rules.md`（v2.3）を適用し、ZIP外部名から`pd_pps_`を削除する（既発行ZIPは改名しない）。
 - [ ] **次回：試行03（CDC ON／CC1）、試行04（CDC OFF／CC1）**を、同じ充電器・Type-Cケーブル・CC向き・無負荷で約12秒の接続時間を目安に取得し、初回／更新の再送数を記録する。
 - [ ] **条件別に各10試行程度まで追加**して初回／更新Requestの成功率と再送数を別集計する。`REVIEW`、TRACE欠落、早期切断は分母へ無断算入しない。
 - [ ] 差が見えた場合、①PC USB接続のみ、②CDC転送負荷ありを区別して再実験する。必要時のみ**M43B**を新規フォルダーで作成し、USBFS ISRとPD TX_END→RXの軽量タイミング記録を追加する。
@@ -323,7 +338,7 @@
 - [x] M4-Bの実機版をローカルGitへ保存：`36048b3`（2026-11-03、作業ツリーcleanを確認）。GitHubへのPushは未確認（`main`が`origin/main`より5コミット先行の状態を確認）。
 - [ ] M4-B未実施の個別異常系・互換性（Source Capabilities変更、コンソール競合など）と、接続時/PPSリフレッシュ時のタイムアウトを調査する。
 - [ ] M4全体の耐久・異常系ゲートを整理し、済/未実施/保留を区別して最終判定する。
-- [ ] **次の記録作業**：本ロードマップ更新版を実リポジトリへ反映し差分確認。`M4B_TEST_PLAN.md`の実施済み・未実施の個別試験状態も、試験証拠に基づき別途更新する。
+- [ ] **次の記録作業**：本ロードマップ更新版をルートGitへ反映して差分確認。M4-Bの実施済み／未実施は本書へ証拠に基づき集約し、旧`M4B_TEST_PLAN.md`は必要内容のKIT ZIP収録を確認後、ユーザーが別操作で整理する。
 - [ ] **次の試験計画**：M7の電源・ハードウェア保護とタイムアウト評価条件を決め、安全な1試験ずつ実行する。
 - [ ] GPIOピン割り当てはM3実験用暫定案として記録し、最終製品配置はUSB/PD機能と合わせてM4～M9で再検討する。
 - [ ] 必要時、M1の測定ログを `12_ina226_current_test` または `docs/` に整理してGit管理する（フォルダーの作成は未確認）。
@@ -334,6 +349,7 @@
 
 | 日付 | 対象 | 結果・判断 | 次のアクション |
 | --- | --- | --- | --- |
+| 2026-11-15 | **Git Submodule・診断除外とルール整理方針** | ルートGitは`C:\pj\pd_pps`へ移行済み。`ch32fun`は`af7c51c`でSubmodule登録、`diagnostics/`は`1eb1add`で全体をGit除外。全体TEST_PLANを本書へ、個別TEST_PLANを実験用KIT ZIPへ、ZIP規約文書は固定名`pd_pps_zip_rules.md`へ統一する方針を確認。**今回のルールKITのWindows導入・Gitコミットは未確認** | 現行README/ROADMAPを基準にしたKITをdry-run→差分確認→明示的に適用。旧TEST_PLANや旧版ルールは自動削除しない |
 | 2026-11-15 | **チャット開発ルールとGit管理の再設計** | チャット中心の一貫した開発を目的に`DEVELOPMENT_RULES.md`、`HANDOFF.md`、ZIP規約v2を整備。Gitルートを`C:\pj\pd_pps`へ移し、旧`src\pd_pps`のGit履歴は保持を必須としない方針。既存ソースと実験ログは保全し、ビルド再確認は後回し可。**配布パッケージ作成はローカルPCへのインストールやGit移行の完了を意味しない** | ZIPをProjectRootに一時保存してdry-run→`-Apply`。Git移行もdry-run→`-Apply`で明示実施。GitHub接続とCommit/Pushは別途判断 |
 | 2026-11-15 | **M43A 試行02／CDC ON・CC1／M5・M7** | 提示ログで初回Requestは`code=12→4→10`、再送0回でPPS 7V／要求1A契約。約5秒後のPPS更新は`code=12→4→13→4→13→4→14`、GoodCRC未受信として再送2回後`TX_FAILED`。`refresh_started=1`／`refresh_done=0`、READY 5,000ms、`source_hr=0`、`vbus_loss=0`、TRACE/イベント欠落0。`STOP reason=4`が切断検出より前で、**契約中の通信失敗**を示す | ファーム・配線を変更せず試行03（ON）、04（OFF）を追加。初回と更新Requestを独立集計 |
 | 2026-11-15 | **M43A 試行01／CDC OFF・CC1／M5・M7** | 初回Requestは再送0回でGoodCRC受信し、PPS更新2/2成功。接続12,098ms、READY 11,386ms、ADC校正7.015V、INA226 6.960V。`trace_dropped=0`、`event_lost=0`。切断に伴う`STOP reason=1`を通常停止として区別 | 試行02と同条件比較の起点として保全。OFF単発成功を接続効果の証明としない |
@@ -378,27 +394,26 @@
 
 1. **実験を独立して残す**：各実験は `12_...` のような番号付きフォルダーへ追加し、過去版を上書きしない。
 2. **実験完了の条件を先に決める**：結果を確認したら、証拠（ログ・写真・測定表・コミットID）を残す。
-3. **ロードマップを更新する**：`C:\pj\pd_pps\ROADMAP.md`のマイルストーン、チェックボックス、未決定事項、進捗ログを更新する。ルートGitへの移行後は**このファイルがGit管理上の正本**。
-4. **Gitへ保存する場合**：ルートを`C:\pj\pd_pps`に統一した後、`git status`と差分を確認して対象ファイルのみステージ・コミットする。既存の`src\pd_pps`内にロードマップを二重コピーしない。GitHubへのPushは別操作。
+3. **全体テストはロードマップへ集約**：`C:\pj\pd_pps\ROADMAP.md`にM0～M10の受入ゲート、共通試験、済・未実施・保留、証拠参照を記載する。実験固有のTEST_PLANは実験用KIT ZIPの`tests/TEST_PLAN.md`へ入れる。
+4. **Gitへ保存する場合**：ルートGit`C:\pj\pd_pps`で`git status`と差分を確認し、対象ファイルのみステージ・コミットする。`src\pd_pps`内へロードマップを二重コピーしない。GitHubへのPushは別操作。
 5. **VS Code設定を変更した場合**：ルートGitで`src/pd_pps/.vscode/tasks.json`と`src/pd_pps/dev-workspace/`を管理する。既存の`organize-pdpps-workspace.ps1 -Mode Apply`はバックアップを作る旧動作のため、新しい「バックアップなし」方針への対応を確認するまで**Inspectのみ使用**する。必要な更新は別途差分を確認して実施し、旧`capture-workspace.ps1`方式は使わない。
-6. **M4-B付属資料の古い記述の扱い**：`16_oled_encoder_pps_control/ROADMAP.md`や各`M4B_TEST_PLAN.md`に2026-11-02時点の「実機未検証／未実施」が残る。本書の2026-11-03実測記録を優先し、原本の履歴は勝手に削除しない。試験計画の更新時は済・未実施・保留のエビデンスを明記する。
+6. **M4-B付属資料の古い記述の扱い**：旧資料の2026-11-02時点の「実機未検証／未実施」は履歴として残る。最新の実績は本書へ証拠付きで反映し、個別TEST_PLANの必要内容を実験KIT ZIPに移したことを確認するまで、原本を無断で削除しない。
 7. **実験番号の混同防止**：実在する`17_pd_spr_sink_rebuild`と実験18～24のCDC検証、現行`43a_pd17_phy_baseline`を優先する。旧`17_pc_control`、`18_firmware_update`、`19_pps_stability_protection`、`20_integrated_prototype`は**計画上の旧仮称**であり、その番号を別用途で再使用しない。PD17内部のM8～M13gは製品正式M8～M10とは無関係。
 8. **差分パッチ・Markdownの空白警告**：M4-B初回Git登録時、`DIFF_*.patch`の空白と`README_M2_ORIGINAL.md`のMarkdown行末2空白が`git diff --cached --check`で報告された。過去差分・原本を無条件に正規化しない。
-9. **診断データの保護**：`diagnostics/`内のログ・実験記録・解析結果を元データとして保管。新規配布ZIPは`pd_pps_zip_rules_v2.md`に従い、元ログを上書き・移動しない。
+9. **診断データ・製品仕様・規約の保護**：`diagnostics/`全体をGit除外し元ログを上書き・移動しない。`docs/PRODUCT_SPEC.md`は保持して仕様変更時に更新する。最新ZIP規約は固定名`pd_pps_zip_rules.md`とし、旧版名を並行管理しない。
 10. **確定事項と仮説の区別**：実機TRACEや測定値に根拠がある場合だけ「確認済み」とする。USB CDCがGoodCRCを不安定化する因果関係やSourceのGoodCRC送信有無は現時点で未確定。
 
 新しい実験をVS Codeの選択メニューへ登録するコマンド（Windows PowerShell 5.1）：
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\pj\pd_pps\src\pd_pps\dev-workspace\organize-pdpps-workspace.ps1" -Mode Inspect
-# 差分・バックアップ先を確認できた場合のみ適用
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\pj\pd_pps\src\pd_pps\dev-workspace\organize-pdpps-workspace.ps1" -Mode Apply
+# 旧Applyはバックアップを作成するため、現行ルールに対応するまで実行しない
 ```
 
 **本ロードマップの保存先（ルートGitの正本）：** `C:\pj\pd_pps\ROADMAP.md`。
 
 ```powershell
-# ルートGitへの移行を適用した後で実行
+# ルートGitの正本を更新した後、差分確認して実行
 Set-Location 'C:\pj\pd_pps'
 git status --short
 git add -- ROADMAP.md
@@ -407,7 +422,7 @@ git diff --cached --stat
 # 内容を確認してからコミットする。Pushは別途判断する。
 ```
 
-Git移行前・インストーラー適用前はこのファイルがGit管理済みとは限らない。`src\pd_pps\ROADMAP.md`への二重コピーは行わず、既存ファイルを上書きする際にも自動バックアップは作成しない。**新規作成したZIPだけでgit commitやGitHub Pushを実施したことにはならない。**
+ルートGitは確立済み。`src\pd_pps\ROADMAP.md`への二重コピーは行わず、既存ファイルを上書きする際にも自動バックアップは作成しない。**新規作成したZIPだけでルールのPC適用、git commit、GitHub Pushが済んだことにはならない。**
 
 ### 関連ファイル
 
@@ -427,7 +442,8 @@ Git移行前・インストーラー適用前はこのファイルがGit管理�
 - [`src/pd_pps/docs/HARDWARE_WIRING.md`](src/pd_pps/docs/HARDWARE_WIRING.md)：現物配線と安全上の注意。
 - `diagnostics/m43a_goodcrc/logs/`：M43A比較実験の生ログ（試行01/02を確認）。
 - `diagnostics/m43a_goodcrc/analysis/`・`records/`：集計結果と試行条件記録。存在・中身はPC上で確認。
-- [`pd_pps_zip_rules_v2.md`](pd_pps_zip_rules_v2.md)：ファームウェア／診断／ルールZIPの現行規約。Gitルート移行、明示的上書き、バックアップなしを規定。
+- [`pd_pps_zip_rules.md`](pd_pps_zip_rules.md)：ファームウェア／診断／ルールZIPの現行規約（文書版v2.3、固定名）。
+- `docs/PRODUCT_SPEC.md`：製品仕様の正本。保持し、要求・設計判断を随時反映する。
 
 **従来のPD17設計・試験資料**は`src/pd_pps/docs/`配下の`M13B_NORMAL_SINK.md`、`M13C_STABILITY_AND_FAIL_CLOSED.md`、`M13D_SOURCE_ORIGINATED_HARD_RESET_PLAN.md`、`M13E_HOST_FAULT_INJECTION.md`、`M13F_PPS_TIMING_AND_MESSAGE_ID.md`等を参照する。これらの存在はGit側で確認する。
 

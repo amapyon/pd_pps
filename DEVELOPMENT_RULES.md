@@ -1,8 +1,8 @@
 # PD PPS 開発共通ルール
 
 - 文書ID：`DEVELOPMENT_RULES`
-- バージョン：1.1
-- 制定日：2026-11-15（実PCへの適用は別途必要）
+- バージョン：1.3
+- 改訂日：2026-11-15（v1.3。実PCへの適用・Gitコミットは別途必要）
 - 正本：`C:\pj\pd_pps\DEVELOPMENT_RULES.md`
 - 対象：ChatGPT中心で進める PD/PPS Explorer の開発・実験・成果物管理
 
@@ -17,7 +17,7 @@ PD/PPS Explorer の中心価値は、USB PD/PPSの能力を**調べる・設定�
 ## 2. 情報の正本と矛盾時の扱い
 
 1. 現在のチャットでユーザーが明示した指示（安全制約の範囲内）。
-2. 現在アクセスできる正本：ルートの`DEVELOPMENT_RULES.md`、`ROADMAP.md`、`HANDOFF.md`、`README.md`、`pd_pps_zip_rules_v2.md`。
+2. 現在アクセスできる正本：ルートの`DEVELOPMENT_RULES.md`、`ROADMAP.md`、`HANDOFF.md`、`README.md`、`pd_pps_zip_rules.md`と`docs/PRODUCT_SPEC.md`（製品仕様）。
 3. 実コード、変更差分、実測の生ログ、テスト結果、配線資料、Git上の実際の記録。
 4. 過去チャットと要約（探索の手掛かりであり、実測の代用にしない）。
 
@@ -30,7 +30,7 @@ PD/PPS Explorer の中心価値は、USB PD/PPSの能力を**調べる・設定�
 - **開発時**：既存の正常動作版（現在はM13b／M43A）を先に活用し、原因を特定しないまま大幅に書き直さない。新ファームウェアは独立した実験フォルダーへ作る。
 - **実機試験時**：原則として一度に1つの試験を案内する。実行場所、コピペできるコマンド、想定出力、保存先、提出してほしいログを明記する。
 - **報告時**：`確定事項`／`仮説`／`未検証`／`判断`／`次の操作`を分ける。PASSは実施したテスト範囲だけを意味する。
-- **終了・切替時**：最新状態は`HANDOFF.md`、マイルストーンやゲートの変更は`ROADMAP.md`へ反映する。過去の実験履歴やログは残す。
+- **終了・切替時**：最新状態は`HANDOFF.md`、全体の試験方針・マイルストーンやゲートの変更は`ROADMAP.md`へ反映する。製品仕様の変更は`docs/PRODUCT_SPEC.md`に反映する。過去の実験履歴やログは残す。
 
 単純な質問にまで毎回この全手順を適用する必要はない。実装、実験、成果物の配布時には再現性を優先する。
 
@@ -39,7 +39,7 @@ PD/PPS Explorer の中心価値は、USB PD/PPSの能力を**調べる・設定�
 - **M13b**はGoodCRC/PPS正常動作実績のあるPHY参照元、**M43A**は2026-11-15時点で書き込み済みの実機版。今回のルール配布はファームウェアを変更しない。
 - 動作実績のある実験フォルダーを上書きしない。新しい版は別フォルダーに置き、差分と前提版を明記する。
 - 書き込み、基板配線、USB給電経路、負荷条件、Gitリモート履歴に影響する操作を、単なる診断や配布の副作用として実施しない。
-- 新ルートGitへの移行は独立した`-Apply`操作で実行する。旧Git履歴は破棄してよいが、ソースファイルと実験ログは削除しない。
+- ルートGitへの移行と`ch32fun`のSubmodule復旧は完了している。移行スクリプトを再実行せず、ソースファイルと実験ログを削除しない。
 - **Git構造整理直後に旧コードがコンパイルできなくても、移行自体を失敗扱いしない。** 必要なマイルストーンで修正する。その場合もビルド成功・実機動作を偽って報告しない。
 
 ## 5. 実験・診断・証拠の基準
@@ -58,18 +58,18 @@ Flash、配線変更、故障注入、ファイル・Git管理情報の削除、
 
 ## 7. 配置・Git・ファイルの運用
 
-**目標の単一Gitルートは`C:\pj\pd_pps`**。旧`src\pd_pps`はGit移行後、通常のソースディレクトリになる。ソース側READMEのGit境界に関する旧記述より、ルートREADMEと本規約を優先する。
+**単一Gitルートは`C:\pj\pd_pps`に確立済み**。旧`src\pd_pps`はGit移行後、通常のソースディレクトリになる。ソース側READMEのGit境界に関する旧記述より、ルートREADMEと本規約を優先する。
 
-- 正本：ルートの`README.md`、`ROADMAP.md`、`DEVELOPMENT_RULES.md`、`HANDOFF.md`、`pd_pps_zip_rules_v2.md`。
-- ソース：`src\pd_pps\firmware\experiments\`。
-- 診断：`diagnostics\`。生ログ・解析出力・試行ごとの記録は通常Gitへ投入しない。
+- 正本：ルートの`README.md`、`ROADMAP.md`、`DEVELOPMENT_RULES.md`、`HANDOFF.md`、`pd_pps_zip_rules.md`。製品仕様の正本は`docs/PRODUCT_SPEC.md`であり、実際の設計決定や機能要件に応じて更新する。
+- ソース：`src\pd_pps\firmware\experiments\`。外部`ch32fun`は`src\pd_pps\ch32fun`のGit Submodule（参照コミット`a800cbd1f1ca5e250c73da83c669f0965d2052e5`）。
+- 診断：`diagnostics\`全体を`.gitignore`でGit管理対象から除外する。生ログ・解析結果・診断スナップショット・診断スクリプトはローカル保管。Git管理が必要な再利用スクリプトは`diagnostics\`外に置く。
 - ツール：`tools\`。コンパイラ等のバイナリは通常Gitに含めない。
 - 正本の変更はルートGitで差分確認してコミットする。インストーラーは**自動`git add -A`、commit、remote設定、push、force-pushを行わない**。
 - **バックアップは自動作成しない。** 既存ファイルを更新する場合は、添付版に対する既知SHA-256の一致、または差分確認後の明示的`-ReplaceExisting`を必要とする。まだコミットしていない変更や未追跡ファイルはGitHubで保護されているとは限らない。
 
 ## 8. ZIP配布と検証の報告
 
-新規の`fw`、`diag`、`rules`型ZIPは`pd_pps_zip_rules_v2.md`に従う。ZIP内部のASCII名、単一親フォルダー、SHA-256 manifest、README/CHANGELOG、既定dry-run、明示的`-Apply`、改変したもの／していないもの、配布先・実行コマンド・未検証事項を必須とする。PowerShellコマンドはWindows PowerShell 5.1を前提に、カレントディレクトリ依存を避ける。
+新規の`fw`、`diag`、`rules`型ZIPは`pd_pps_zip_rules.md`に従う。**ZIPの外部ファイル名から`pd_pps_`接頭辞を外す**（既発行ZIPは改名しない）。ZIP内部のASCII名、単一親フォルダー、SHA-256 manifest、README/CHANGELOG、既定dry-run、明示的`-Apply`、改変したもの／していないもの、配布先・実行コマンド・未検証事項を必須とする。実験用KITの個別試験計画はZIP内`tests/TEST_PLAN.md`に同梱する。PowerShellコマンドはWindows PowerShell 5.1を前提に、カレントディレクトリ依存を避ける。
 
 成果物の作成、ファイルの配布、Windowsへの導入、ホスト試験、クロスビルド、実機確認、GitHub反映は**それぞれ別の完了状態**として扱う。
 
@@ -87,3 +87,21 @@ Flash、配線変更、故障注入、ファイル・Git管理情報の削除、
 - 新しく生成するExcel向けCSVは、別途定めたUTF-8 BOMを守りつつ、改行をLFで出力してよい。CSVを受け付ける外部ツールに固有要件がある場合のみ記録を残して例外を認める。
 - Gitの警告を抑える目的で`core.safecrlf=false`等へ変更しない。**原因を解消**する。従来のCRLFファイルは後から段階的に整備し、全ソースや過去ログを一括変換しない。
 - `.gitattributes`の適用後、Gitで改行変換の警告が発生したときは、対象ファイルの実際の改行と属性（`git check-attr text eol -- <path>`）を確認する。
+
+## 11. 試験計画・製品仕様・実験KITの管理（v1.2制定、v1.3更新）
+
+- **全体のテストの正本はルート`ROADMAP.md`**とする。正式M0～M10の受入ゲート、共通試験方針、未実施・保留、実測根拠、試験優先度、マイルストーン間の繰越事項を記載する。実際に確認した範囲を超えてPASSにしない。
+- **個別実験の`TEST_PLAN`は、その実験用KITのZIP内`tests/TEST_PLAN.md`に収録**する。目的、対象版、準備・接続・安全、テストID、操作、期待結果、判定条件、保存ログ、停止条件、未検証事項を書く。`rules`型ZIPには実験固有TEST_PLANを要求しない。
+- ルートや`src/pd_pps`直下に`M1_TEST_PLAN.md`、`M4B_TEST_PLAN.md`等の**独立した個別TEST_PLANを新規作成・登録しない**。既存の個別TEST_PLANを整理・削除する際は、必要な手順が対象KITのZIPに含まれることを先に確認する。旧計画の実績・生ログ・Git履歴は削除せず、過去の参照記述には履歴であることを示す。
+- 新版KIT作成時はZIP内部に個別TEST_PLANを同梱する。計画・実行結果の相違はROADMAPの進捗と実測証拠へ反映する。ZIPに計画があることと実機試験に合格したことは別。
+- **`docs/PRODUCT_SPEC.md`は維持**し、機能要件・制約・製品判断の変更に応じて随時更新する。今回はユーザーPCに存在する本文を読み込めていないため、配布ZIPから上書きしない。Gitには対象ファイルを明示して登録する。
+- ZIP名の新規命名は`<type>_<module>_vNN_YYYYMMDD.zip`（例：`fw_m43b_goodcrc_v01_20261115.zip`、`rules_workspace_v04_20261115.zip`）。**ルール文書は版番号なしの固定ファイル名**`pd_pps_zip_rules.md`に統一し、改訂版は同じパスで更新する。版は本文・CHANGELOG・Git履歴で管理する。旧`pd_pps_zip_rules_v2.md`等の整理は別途明示的な操作とし、インストーラーが削除しない。
+- `diagnostics/`はGit管理対象外（2026-11-15の`1eb1add`で除外済み）。Submodule登録は`af7c51c`で済んだ。既存のローカルファイル・Submoduleはルール配布時に再初期化しない。
+- ファイル削除・Gitからの除外・Gitコミット・PushはZIPの`install.ps1`に含めず、対象と影響を確認したうえでユーザーが別操作で実施する。
+
+## 12. ルール文書の単一正本（v1.3追補）
+
+- ルートに配置するルール文書名は固定し、ファイル名に`_v1`、`_v2`等の版番号を付けない。ZIP配布規約の正本は**`pd_pps_zip_rules.md`**。`DEVELOPMENT_RULES.md`、`README.md`、`ROADMAP.md`、`HANDOFF.md`も固定名で更新する。
+- 規約の版数や変更理由は**本文のバージョン／改訂日、配布KITのCHANGELOG、Gitのコミット履歴**で追跡する。版ごとの規約文書をルートで並行管理しない。
+- 旧名の規約ファイルが存在するときは、最新版を新しい固定名で設置・内容検証してから、対象を指定したユーザー操作でGit管理から退役させる。インストーラーは旧ファイルを自動削除・移動しない。
+- ZIPアーカイブそのものの名前には引き続き`_vNN_YYYYMMDD`を使用し、既発行ZIPは改名しない。
