@@ -49,6 +49,3 @@ Thumbs.db
 
 # Legacy workspace (standard workspace is src/pd_pps)
 /pd_pps.code-workspace
-
-# External dependency: pending submodule restoration
-/src/pd_pps/ch32fun/
