@@ -1,0 +1,33 @@
+# Root repository C:\pj\pd_pps (new single-repo layout)
+# Toolchains, raw experiment evidence and transient distribution files
+/tools/
+/_staging/
+/_staging_rules/
+/workspace-backups/
+/pd_pps_*.zip
+
+# Never auto-commit original diagnostics logs, run data or transient analyses
+/diagnostics/**/logs/
+/diagnostics/**/analysis/
+/diagnostics/**/records/*.csv
+
+# Local configuration and credentials
+.env
+.env.*
+**/env.ps1
+**/*secret*
+**/*credentials*
+
+# Generated compiler/linker outputs (source files are not ignored)
+**/build/
+**/*.o
+**/*.d
+**/*.elf
+**/*.map
+**/*.bin
+**/*.hex
+
+# Editor / OS noise (source .vscode/tasks.json might be ignored by nested
+# .gitignore; explicitly add with git add -f only after review)
+.DS_Store
+Thumbs.db

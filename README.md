@@ -1,0 +1,289 @@
+# PD PPS 開発環境
+
+CH32X035F8U6（WeActStudio CH32X035 CoreBoard V1.0）を使用した、USB Power Delivery（USB PD）／Programmable Power Supply（PPS）Sink開発の**ローカル開発環境ルート**です。
+
+- **配置先:** `C:\pj\pd_pps\README.md`（このファイル）
+- **Git運用の移行先:** `C:\pj\pd_pps`を単一のリポジトリルートとする（移行スクリプトの適用後）
+- **更新基準日:** 2026-11-15
+- **現在の実機ファームウェア:** **M43A**
+- **直近の調査テーマ:** PD Request送信後のGoodCRC受信不安定（初回RequestとPPS周期更新を区別して調査）
+- **原則:** 動作実績のあるM13bおよび現在のM43Aは保全し、原因を切り分けるまでファームウェアと基板配線を不用意に変更しない。
+
+> このREADMEは、開発環境とチャット連携の入口です。**Gitの新しいルートは本ディレクトリ**です。ただしZIPを配布しただけではGit移行は行われません。ソース側READMEは旧リポジトリ構造で記載された部分があるため、Git境界については本書と`DEVELOPMENT_RULES.md`を優先してください。ファームウェア実験とVS Codeタスクの詳細は [`src/pd_pps/README.md`](src/pd_pps/README.md) を参照します。
+
+## 1. ディレクトリの役割
+
+以下は**Git移行・ルール配置後の目標構成**です。存在するファイルを網羅した実ディスク一覧ではありません。ZIP展開だけでは以下のGit状態にはなりません。
+
+```text
+C:\pj\pd_pps\
+├── .git\                              # Git移行を明示的に適用した場合のみ作成
+├── .gitignore                         # 開発ツールと生ログを除外
+├── README.md                          # 本書
+├── ROADMAP.md                         # 製品のマイルストーン（正本）
+├── DEVELOPMENT_RULES.md              # 開発とチャットの共通規約
+├── HANDOFF.md                        # 次チャットへ引き継ぐ最新状態
+├── pd_pps_zip_rules_v2.md            # 成果物ZIP作成規約
+├── scripts\project\                  # ルール検証・Git移行補助スクリプト
+├── tools\                           # xPackのRISC-V GCC / Makeなど（Git管理外）
+├── src\
+│   └── pd_pps\                     # 新リポジトリ内の通常のソースフォルダー
+│       ├── README.md                # ソース側の詳細な開発・実験手順
+│       ├── .vscode\tasks.json       # VS Codeタスク
+│       ├── ch32fun\                 # 旧サブモジュール。移行後はソースを通常管理する想定
+│       ├── dev-workspace\           # Build / Flash / ログ取得の補助スクリプト
+│       │   └── pd-pps.ps1
+│       ├── docs\                    # 回路・配線・検証記録
+│       └── firmware\
+│           └── experiments\
+│               ├── 17_pd_spr_sink_rebuild\   # M13bの実績あるPD PHYの参照元
+│               └── 43a_pd17_phy_baseline\   # M43A（現在の比較対象）
+└── diagnostics\                     # 実測・解析・記録（Gitの追跡から除外する部分あり）
+    └── m43a_goodcrc\
+        ├── logs\                    # 試行ごとのWCH-LinkE生ログ
+        ├── analysis\                # GoodCRC / Request集計結果
+        ├── records\                 # 試行条件の記録表
+        └── scripts\                 # ログ取得・解析用PowerShell（現行v3）
+```
+
+**管理の境界**
+
+| 保存場所 | 役割 | 管理上の注意 |
+|---|---|---|
+| `src\pd_pps\` | ソースコード、Makefile、開発スクリプト | **ルートGit**で必要なファイルのみコミット。従来の内側`.git`は明示的な移行で除去する |
+| `tools\` | ローカルのコンパイラ等 | Gitリポジトリに含めない |
+| `diagnostics\` | ログ、CSV、試行記録、解析スクリプト | 元ログを保全。ソースと混在させない |
+| ルートの`README.md`・`ROADMAP.md`・規約・`HANDOFF.md` | 開発方針の正本 | **ルートGit**で管理する。旧内側Gitから履歴移行は行わない |
+
+以前使用していたルート直下の`pd_pps.code-workspace`や`pd-pps.ps1`は**旧運用**に由来します。現行の標準は`src\pd_pps`自体をVS Codeで開き、リポジトリ内の`dev-workspace\pd-pps.ps1`を使用する方法です。旧ファイルが存在しても、現行手順の前提にはしません。
+
+## 1.1 チャット中心開発の正本・Git移行
+
+- `DEVELOPMENT_RULES.md`：実験・変更・検証・チャット進行の共通規約。
+- `ROADMAP.md`：製品目的とM0～M10マイルストーンの正本。
+- `HANDOFF.md`：現在のファームウェア、直近の実験結果、仮説、次の作業。
+- `pd_pps_zip_rules_v2.md`：ファームウェア・診断・ルールZIPの配布規約。
+
+新しいチャットでは**この4ファイルの最新内容を参照**します。ChatGPTはWindows上のローカルファイルを自動読取できるとは限らないため、必要な場合は添付してください。今回のルール配布ZIPは一時的に`C:\pj\pd_pps`へ保存し、`install.ps1`で配置します。配布物を作成しただけでPCへ反映済みとはみなしません。
+
+**Git移行方針：** `C:\pj\pd_pps`を唯一のリポジトリルートとし、`src\pd_pps`にある旧`.git`の履歴保持は必須にしません。`scripts\project\Initialize-Root-Git.ps1`で予定を確認後、`-Apply`を明示して移行します。**移行ではコード・実測ログを削除せず、Git管理メタデータだけを削除します。** Gitへの追加・コミット・GitHubへのPushは別の操作です。バックアップは作成しません。GitHubの古い履歴を自動で上書きしません。
+
+既存のソース側`src\pd_pps\README.md`に残る「Gitリポジトリが`src\pd_pps`にある」という記述は旧運用です。ソース側READMEの内容を無条件に書き換えることはせず、必要な開発段階で整合させます。リポジトリ移行時点で旧コードがコンパイルできなくても、移行作業の失敗とは扱いません。
+
+## 2. 開発環境
+
+| 項目 | 現在の前提 |
+|---|---|
+| OS | Windows 11 |
+| エディター | Visual Studio Code |
+| マイコン・基板 | CH32X035F8U6 / WeActStudio CoreBoard V1.0 |
+| ビルド | RISC-V GCC、GNU Make（xPack） |
+| 書き込み・デバッグ | WCH-LinkE、ch32fun `minichlink` |
+| コマンド実行 | Windows PowerShell 5.1 |
+| Git管理のルート（移行後） | `C:\pj\pd_pps`。旧GitHub: <https://github.com/amapyon/pd_pps>（新しい履歴との接続方法は未確定） |
+
+ソース側READMEによる既知のツール配置例：
+
+```text
+C:\pj\pd_pps\tools\xpack-riscv-none-elf-gcc-14.2.0-3\bin
+C:\pj\pd_pps\tools\xpack-windows-build-tools-4.4.1-3\bin
+```
+
+実際の参照先は`src\pd_pps\dev-workspace\pd-pps.ps1`の内容で確認してください。新しいPCへのGit cloneやツール導入手順は[ソース側README](src/pd_pps/README.md)に記載されています。
+
+## 3. 通常の開発操作
+
+以下のPowerShellコマンドは、**すべて `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ...` 形式**で実行します。
+
+### VS Codeで開く
+
+```powershell
+Set-Location 'C:\pj\pd_pps\src\pd_pps'
+code .
+```
+
+VS Codeのタスクは`src\pd_pps\.vscode\tasks.json`にあります。メニューに出る実験一覧は、ソース側READMEの記載時点と異なる可能性があります。
+
+### WCH-LinkEの接続確認
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\pj\pd_pps\src\pd_pps\dev-workspace\pd-pps.ps1" -Action Probe
+```
+
+### M43Aのビルド（書き込みなし）
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\pj\pd_pps\src\pd_pps\dev-workspace\pd-pps.ps1" -Action Build -Project firmware/experiments/43a_pd17_phy_baseline
+```
+
+M43Aでは過去にエントリファイルの`#include "src/main.c"`が欠け、`main`未定義でリンク失敗したことがあります。修正版はビルド成功と記録されていますが、**手元の作業ツリーが修正版と一致するかはビルド前に確認**してください。
+
+### 書き込み（明示的に必要な場合のみ）
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\pj\pd_pps\src\pd_pps\dev-workspace\pd-pps.ps1" -Action Flash -Project firmware/experiments/43a_pd17_phy_baseline
+```
+
+**注意:** FlashはMCUの既存ファームウェアを上書きします。現在のGoodCRC比較実験では、M43Aを**書き換えない**方針です。書き込みを実施する場合は、対象ソース、現在のM43Aのバックアップ、PD電源・配線、負荷条件を確認し、`minichlink -T`のログ端末を終了してください。
+
+## 4. ハードウェアと接続
+
+現在のM43A実機で使用している構成は次のとおりです。
+
+| 用途 | 接続・設定 |
+|---|---|
+| PD充電器とのCC通信 | 基板J1のCC1/CC2（PC14/PC15） |
+| PCとのUSB CDC通信 | 別USB-Cブレークアウト経由、D+→TP1/PC17、D−→TP2/PC16 |
+| WCH-LinkEデバッグ | `debugprintf`、実績のあるPC環境ではCOM5 |
+| M43AのUSB CDC | VID `1209` / PID `D035`、シリアル`043`、実績のあるPC環境ではCOM16 |
+| VBUS測定 | PA0 ADC_IN0（100kΩ / 10kΩ分圧） |
+| 電圧・電流監視 | INA226、I²C PA2=SCL / PA3=SDA、7bitアドレス`0x40`、R010 |
+
+COM番号は接続状況によって変わります。Windowsのデバイスマネージャー等で確認してください。
+
+**配線上の注意:**
+
+- PC通信用USBのVBUSは、確認済み構成どおりWeAct基板へ接続しない。共通GNDをとる構成を維持し、PCとPD充電器の給電競合を避ける。
+- J1のUSBデータ線を1本切断した加工はあるが、切断がD+かD−かは**未確定**。確認前に切断・はんだ修正を追加しない。
+- INA226の0.01ΩシャントをVBUSとGNDに直結しない。電流測定は適切な負荷のハイサイド直列に挿入する必要がある。
+- 現在の比較実験は**外部負荷なし**で実施する。PPSの「7V・1A」は要求電圧と電流上限を示し、1Aを実際に消費したことを意味しない。
+
+回路と配線の詳細は [`src/pd_pps/docs/HARDWARE_WIRING.md`](src/pd_pps/docs/HARDWARE_WIRING.md) と当該実験のREADMEを参照してください。
+
+## 5. 現在のM43Aと確認済みの実機結果
+
+### ソフトウェアの位置付け
+
+- **M13b:** `firmware/experiments/17_pd_spr_sink_rebuild`。過去にCC1、初回Request再送なしで7V・1A PPS契約に成功した、実績あるPD PHYの参照元。
+- **M43A:** `firmware/experiments/43a_pd17_phy_baseline`。M13b由来のPD PHYを、M42のUSB CDC・センサー監視機能と統合した比較版。**現在の実機ファームウェア**。
+- **M43B:** 現段階では開発・実機検証していない。必要性は比較実験の結果から判断する。
+- **製品向け統合版:** `firmware/product/`は将来の計画上の配置先であり、作成済みの製品版として扱わない。
+
+### 観測された事実（2026-11-15時点）
+
+| 試験 | PC CDC条件 | 初回Request | PPS周期更新 | 確認内容 |
+|---|---|---|---|---|
+| 旧M13b | PC通信用USBなし | 再送0で成功 | 3回成功 | 7V・1AのPPS契約 |
+| M43A（先行試験） | CDC通信中 | 再送1で成功 | 接続が短く未実施 | 7V・1A契約、CDC応答を確認 |
+| M43A 試行01 | OFF / CC1 | 再送0で成功 | 2回成功 | READY 11.386秒、TRACE欠落0 |
+| M43A 試行02 | ON / CC1 | 再送0で成功 | 最初の更新で再送2回後TX_FAILED | READY 5.000秒、契約中のVBUS低下検出0、TRACE欠落0 |
+
+「ON/OFF」は実験者が付けたPC CDCケーブルの**接続条件ラベル**です。特に試行02のログ自体は、WindowsのUSB列挙状態やCDC転送回数を証明しません。初回Requestが成功しても、その後のPPS更新が成功するとは限りません。
+
+**今回の課題として確定した現象:** 初回Requestだけでなく、PPS契約成立後の更新Requestでも、GoodCRC未受信→再送→`TX_FAILED`が起こり得ます。一方で、CDC通信中に成功した事例もあります。
+
+**原因は未確定:** USBFS割り込み負荷、PD送信完了後のRX移行タイミング、GND/CC信号品質、配線・接触条件などは、いずれも**仮説**です。`TX_FAILED`だけでは、充電器がGoodCRCを送信しなかったのか、MCUが受信・認識できなかったのかを区別できません。物理層の確定にはCC波形観測やPDアナライザー等が必要です。
+
+## 6. GoodCRC比較実験：ログの取得と解析
+
+**目的:** M43Aのソースと配線を変更せず、同じ充電器・ケーブル・CC向き・無負荷条件で、PC CDC接続の有無とRequestごとの再送回数を比較します。初回Requestと5秒周期のPPS更新Requestは**別々に集計**します。
+
+### 6.1 現行の診断パッケージ（v3）
+
+現在案内済みの診断v3では、以下を使用します。
+
+```text
+C:\pj\pd_pps\diagnostics\m43a_goodcrc\
+├── scripts\
+│   ├── Start-M43A-Log.ps1
+│   └── Summarize-M43A-Trials-v3.ps1
+├── logs\
+│   ├── M43A_01_OFF_CC1.log
+│   └── M43A_02_ON_CC1.log
+├── analysis\
+│   ├── M43A_requests_v3.csv
+│   ├── M43A_trial_details_v3.csv
+│   └── M43A_summary_v3.csv
+└── records\
+    └── M43A_trial_sheet.csv
+```
+
+これは**v3のファイル名・出力方式**の説明です。インストール済みの有無は環境によります。まず存在確認してください。
+
+```powershell
+Test-Path 'C:\pj\pd_pps\diagnostics\m43a_goodcrc\scripts\Start-M43A-Log.ps1'
+Test-Path 'C:\pj\pd_pps\diagnostics\m43a_goodcrc\scripts\Summarize-M43A-Trials-v3.ps1'
+```
+
+### 6.2 ログ取得
+
+以下は試行03（CDC ON / CC1）の例です。**既に試行03を取得済みなら、その番号は再利用せず、次の未使用番号に変更**してください。
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\pj\pd_pps\diagnostics\m43a_goodcrc\scripts\Start-M43A-Log.ps1" -Trial 3 -Mode ON -CC CC1
+```
+
+試行ごとにPD充電器を1回接続し、可能ならPPS更新を2回観測できる約12秒以上を目安に接続してから切断します。ログ端末は`Ctrl+C`で終了します。同じ試行番号のログがあれば、v3のログ取得スクリプトは上書きせずエラーにします。
+
+次の試行04（CDC OFF / CC1）の例：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\pj\pd_pps\diagnostics\m43a_goodcrc\scripts\Start-M43A-Log.ps1" -Trial 4 -Mode OFF -CC CC1
+```
+
+- `ON`: PC通信用USBケーブルを接続した条件。周期的なCDCコマンド送信を実施したことは意味しません。
+- `OFF`: PC通信用USBケーブルを外した条件。WCH-LinkE側のデバッグログは継続して取得します。
+- 両条件で充電器・PDケーブル・CC向き・無負荷・測定時間を可能な限り固定します。
+- まず接続の有無を比較し、CDC通信量を変える実験は**別条件**として記録します。
+
+ログ名の形式は`M43A_<番号2桁>_<ON|OFF>_<CC1|CC2>.log`です。実測ログを修正・上書きしないでください。
+
+### 6.3 v3の解析
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\pj\pd_pps\diagnostics\m43a_goodcrc\scripts\Summarize-M43A-Trials-v3.ps1"
+```
+
+v3は`logs\`の対象ファイルを読み取り、**`analysis\`直下の固定名CSVに出力**します。
+
+| 出力 | 内容 |
+|---|---|
+| `M43A_requests_v3.csv` | INITIAL / REFRESHの各Request、再送数、GoodCRC / TX_FAILED |
+| `M43A_trial_details_v3.csv` | 試行別の結果、停止要因、ログ品質 |
+| `M43A_summary_v3.csv` | ON/OFF・CC別の集計 |
+
+**v3の制約:** 解析結果の固定名CSVは再解析で上書きされる可能性があります。後から比較する場合は、解析前に既存の`analysis\`を別名で保管してください。ログ品質が`REVIEW`の試行は、TRACE欠落・不完全ログなどを個別確認し、成功率へ無条件に算入しません。
+
+### 6.4 今後のZIP配布規約（v04以降）
+
+2026-11-15制定の旧規約v1.0を、**`pd_pps_zip_rules_v2.md`（v2.0）に改訂**しました。新しい規約はファームウェア・診断・ルールZIPに適用します。これは**現在の診断v3が新規約に準拠済みという意味ではありません**。
+
+- ZIP名は`pd_pps_<fw|diag|rules>_<module>_vNN_YYYYMMDD.zip`、ZIP内部のファイル名はASCIIのみ。
+- ZIP内部は単一の親フォルダーとし、`README.md`、`CHANGELOG.md`、`manifest.json`、`install.ps1`を必須にする。
+- インストーラーは既定でdry-run、`-Apply`で配置。既存内容は一致した旧基準ハッシュの場合のみ更新し、差異がある場合は中止（明示的`-ReplaceExisting`でのみ上書き）。**バックアップは作成しない。**
+- 診断スクリプトは`diagnostics\m43a_goodcrc\scripts\vNN\`へ版別に配置。
+- 生ログはそのまま保護し、解析結果は`analysis\YYYYMMDD_HHMMSS\`に新規保存。
+- ビルド、PowerShell実行、実機動作は**別々の検証項目**として報告。
+
+旧v3のインストーラーは同名スクリプトを強制コピーする処理があり、v04以降の安全なインストール方式とは異なります。**既にv3を導入済みなら、通常のログ取得や解析のために旧インストーラーを再実行する必要はありません。**
+
+## 7. 次に行う実験
+
+1. **M43Aを保全**したまま、CDC ON/OFFを交互に比較する。現在、試行01・02のログが解析対象。
+2. 試行03（ON / CC1）・04（OFF / CC1）を同じ測定条件で取得する。接続時間はPPS更新を観測できる程度に固定する。
+3. 初回Requestの「再送0／1／2で成功、TX_FAILED」と、周期更新Requestの同じ分類を分けて集計する。
+4. 差の傾向が見えたら、CDCの接続だけとCDC転送負荷の影響を分離する。必要なら、USBFS ISR発生とPD TX_END→RX受信窓のタイミングを**軽量な記録方式**で調べる。
+5. 新しいファームウェア（例：M43B）を作る場合は、M13bの成功実績のあるPD PHYを優先して再利用し、**新規の実験フォルダー**に追加する。
+
+1～2試行の結果からUSB CDCを原因と断定しないでください。
+
+## 8. 参照資料と記録
+
+| 参照先 | 内容 |
+|---|---|
+| [`src/pd_pps/README.md`](src/pd_pps/README.md) | Gitリポジトリ、VS Code、ビルド、実験の運用 |
+| [`src/pd_pps/docs/HARDWARE_WIRING.md`](src/pd_pps/docs/HARDWARE_WIRING.md) | 基板と追加回路の配線・注意事項 |
+| `src\pd_pps\firmware\experiments\17_pd_spr_sink_rebuild\` | M13bのPD PHY参照元 |
+| `src\pd_pps\firmware\experiments\43a_pd17_phy_baseline\` | 現在のM43A実験ソース |
+| `diagnostics\m43a_goodcrc\logs\` | 各試行の生ログ |
+| `diagnostics\m43a_goodcrc\records\` | 実験条件の記録CSV |
+| `PD_PPS_引継ぎ_2026-11-15.md` | 2026-11-15の引き継ぎ資料。**保存場所は未確認** |
+| [`pd_pps_zip_rules_v2.md`](pd_pps_zip_rules_v2.md) | 最新のZIP規約v2.0（このルールZIPを適用した後の正本） |
+| [`DEVELOPMENT_RULES.md`](DEVELOPMENT_RULES.md) | チャット・検証・変更管理ルール |
+| [`HANDOFF.md`](HANDOFF.md) | 新しいチャットに渡す現在の状態 |
+
+ルートREADMEの記述とリポジトリの実ファイルが食い違う場合は、実際のファイル・現在のログ・Git差分を確認し、確定した内容で双方の文書を更新してください。
+
+---
+
+**文書の位置付け:** このREADMEはWindows上の`C:\pj\pd_pps\`全体の運用案内です。現在実機に書き込まれたM43AやユーザーPCのファイル配置をこの文書の作成だけで変更したものではありません。

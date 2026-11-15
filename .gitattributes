@@ -1,0 +1,44 @@
+# PD PPS project: store and check out text as LF on every OS.
+# Binary formats must not be converted by Git.
+* text=auto eol=lf
+
+# Explicit binary exceptions (keep bytes unchanged)
+*.zip -text
+*.7z -text
+*.pdf -text
+*.png -text
+*.jpg -text
+*.jpeg -text
+*.gif -text
+*.webp -text
+*.ico -text
+*.exe -text
+*.dll -text
+*.elf -text
+*.bin -text
+*.hex -text
+*.o -text
+*.a -text
+*.lib -text
+*.pdb -text
+*.pack -text
+*.ch32 -text
+*.SchDoc -text
+
+# Config and code files should always be treated as LF text
+.gitattributes text eol=lf
+.editorconfig text eol=lf
+.gitignore text eol=lf
+*.md text eol=lf
+*.ps1 text eol=lf
+*.psm1 text eol=lf
+*.psd1 text eol=lf
+*.json text eol=lf
+*.code-workspace text eol=lf
+*.c text eol=lf
+*.h text eol=lf
+*.py text eol=lf
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.patch text eol=lf

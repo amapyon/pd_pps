@@ -1,0 +1,15 @@
+# Editor preferences for files created in this project
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+
+# Non-ASCII PowerShell 5.1 source needs BOM; LF still applies.
+[*.ps1]
+charset = utf-8-bom
+
+# Excel interoperability when creating new CSV documents.
+[*.csv]
+charset = utf-8-bom
