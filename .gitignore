@@ -6,10 +6,8 @@
 /workspace-backups/
 /pd_pps_*.zip
 
-# Never auto-commit original diagnostics logs, run data or transient analyses
-/diagnostics/**/logs/
-/diagnostics/**/analysis/
-/diagnostics/**/records/*.csv
+# Diagnostic data, captures, and scripts (local only)
+/diagnostics/
 
 # Local configuration and credentials
 .env
