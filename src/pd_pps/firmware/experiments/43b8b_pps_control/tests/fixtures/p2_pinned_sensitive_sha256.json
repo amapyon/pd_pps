@@ -1,0 +1,11 @@
+{
+  "src/pd_policy.c": "db71eb11e3237cafe94437ce27c9dfb56aaa96f6a87052f60de749a7e380aeec",
+  "src/m38_usb.c": "d2145887bf317dada00ca55779380e9a29830f1fd8e564b100a22b560aface5b",
+  "src/pd_phy_ch32x035.c": "25ef6dfb16cff5aa70c0d1bb288f8721187b630c929589872eb737be4d57a9f0",
+  "m28_fsusb.c": "7f7fac2e2ef64d5c9e01a03d02195a754b11e067d3abb6deb8ffc7c81262f3e9",
+  "src/pd_vbus_monitor.c": "036e6e5588d1336646a5edff14b8e08dad9878858ad29050b0330b3fce9899e2",
+  "src/pd_hr_recovery.c": "1753aeff528fa07419dbc29ccd75810c77f4ea8def28b8d063f6e4714806e4d0",
+  "src/m43b3_sram.c": "40b0860bc997d743729b1186f9daa4fd6492cf79960e0c5ccf09d35b1c8280c3",
+  "src/m43b2_diag.c": "fa5c543c24d59192eabcc17c579bb7ac7418dac385919917c59aaaa85c9701e5",
+  "src/pd_sensors.c": "d8c983aa7036cde8d49917ab307d2b856683555d3e70b032ed32f36273326985"
+}

@@ -1,7 +1,7 @@
 # PD PPS 開発引き継ぎ（チャット切替用）
 
-- 更新日：2026-11-15
-- 文書状態：**今回アップロードされた現行README/ROADMAP/HANDOFFにM43B-7 P2までの結果を統合。新KITのWindows適用・Gitコミットは未実施**
+- 更新日：2026-11-17
+- 文書状態：**M43B-8 A/Bまでの実機結果を反映。Gitコミット・Pushは実際の実行結果で判定し、本書の作成だけでは完了としない。**
 - 正本：`C:\pj\pd_pps\HANDOFF.md`
 
 ## 1. 新しいチャットで最初に読む資料
@@ -19,14 +19,22 @@ PD/PPS Explorer：USB PD/PPSの能力取得、PPS設定、INA226測定、スタ�
 
 - 正式マイルストーン：M0～M3は限定された範囲で**完了**、M4・M5・M7は**進行中**、M6・M8～M10は**未着手**。
 - ハードウェア：WeActStudio CH32X035 CoreBoard、WCH-LinkE、PD Sink用USB-C、PC USB CDC用の別接続。
-- **直近の実機検証版：M43B-7 P2**（`src\pd_pps\firmware\experiments\43b7_p2_session_refactor`。R01～R03の回帰を確認）。M43Aは過去の比較基準。FLASHしたBINの独立ハッシュ確認は別途。
+- **直近の実機検証版：M43B-8 B**（`src\pd_pps\firmware\experiments\43b8b_pps_control`）。PPS CDC設定、DMMでの実電圧変化、要求電流設定の往復操作を確認。M43B-7は比較基準。
 - 正常動作実績のあるPHY参照元：**PD17 M13b**、`src\pd_pps\firmware\experiments\17_pd_spr_sink_rebuild`。
-- 直近の開発：**P0（テスト保護）、P1（重複削除）、P2（責務分離）**の主要実機回帰確認が完了。次はP3（診断の整理・可視化）。GoodCRC未受信と実VBUS低下の根本原因は未解決。
-- **M13b・M43A・M43B-5/6/7を保全**し、P3ではPHY/USBFS ISR/通信時間定数を変更しない。配線変更や不具合修正は別の試験で扱う。
+- 直近の開発：**M43B-8 Aの電力選択分離**、**M43B-8 BのPC設定API**を実機確認。次はM43B-8 Cに進む前にPC USB/COM/PDの切断・再接続の安全性試験（C01～C05）。接続条件によるPD失敗例は残存。
+- **M13b・M43A・M43B-5/6/7・M43B-8 A/Bを保全**する。PHY/USBFS ISR/時間定数の変更を伴う原因対策は独立した実験で行う。
 
 ## 3. 実機で確認したこと
 
-### 現行基準：M43B-7 P2まで（2026-11-15）
+### M43B-8 A/B（2026-11-17、最優先の現行記録）
+
+- **M43B-8 A：** PDO/APDO選択・RDO生成を`pd_power.c/h`へ分離。PPS 7V/1AとUSB CDC監視を同時に実機確認。CC2 READY下の120秒Monitorは**120/120成功**、`PDERR`全件0、PPS周期更新の増分**24/24完了**。
+- **M43B-8 B：** `PPS GET`/`SET`/`STATUS`追加。要求受付時は`pending=1 applied=0`、Accept/PS_RDY後は`pending=0 applied=1`。7.02Vへの往復契約変更、DMMで確認した7.20Vへの実電圧往復変更、要求電流500/1,000mAの往復、無効値3件拒否がPASS。
+- **検証：** Python74件中65 PASS/9 SKIP、クロスビルドFLASH 26,184B/RAM 5,904B。ネイティブC試験のSKIPは未実施扱い。
+- **制約：** 一部接続順序/CC向きでSource Caps未受信やTX_FAILEDを観測。安全動作・負荷・長時間・他Sourceは未検証。要求電流は実負荷の電流制限の確認ではない。
+- **詳細：** [`docs/M43B8_AB_VERIFICATION.md`](docs/M43B8_AB_VERIFICATION.md)。この下にあるM43B-7/M43A節は過去の比較記録。
+
+### 過去の比較基準：M43B-7 P2まで（2026-11-15）
 
 | 版／試験 | PC USB | 主な結果 | 判定 |
 |---|---|---|---|
@@ -63,6 +71,11 @@ PD/PPS Explorer：USB PD/PPSの能力取得、PPS設定、INA226測定、スタ�
 原因対策はP3リファクタリングとは分け、必要ならPDアナライザー／CC波形を利用する。
 
 ## 5. 次に実施する作業
+
+**2026-11-17更新：** 直近はM43B-8 Bの検証記録とA/Bソースを選択的にGitへコミット・Pushする。その次にファームウェアを変更せずC01 COM Close、C02 PC USB切断、C03再接続、C04 PD充電器切断、C05再接続を行う。安全上の期待動作を決めずに「継続しているから安全」と判断しない。
+
+以下の2026-11-15作業項目は履歴として残す。
+
 
 1. **今回のコミット：** 現行3文書を基準にした本更新KITを既知SHA-256照合で適用する。M43B-6・M43B-7のソースと、ルートREADME/ROADMAP/HANDOFF、`docs/M43B7_P2_VERIFICATION.md`だけを選択的にGitへステージし、差分確認後にローカルコミットする。
 2. **P3：** M43B-7を基準に診断イベント名・状態遷移の説明を一元管理し、PC側でSRAMとPDログの時系列表示を作る。既存バイナリ診断フォーマットとCDC応答を維持する。P3は**未実装**。

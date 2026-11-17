@@ -1,0 +1,3 @@
+M43B-2 src/pd_phy_ch32x035.c sha256 = bc44303093c0b4dbdb51dc1488741881a1abf770b01b1be4ce00a6b52d87812d
+M43B-3 src/pd_phy_ch32x035.c is M43B-2 plus only SRAM diagnostics insertions.
+Host test test_m43b2_phy_restorable_after_only_m43b3_inserts verifies inverse SHA.

@@ -4,12 +4,20 @@ CH32X035F8U6（WeActStudio CH32X035 CoreBoard V1.0）を使用した、USB Power
 
 - **配置先:** `C:\pj\pd_pps\README.md`（このファイル）
 - **Git管理ルート:** `C:\pj\pd_pps`（移行済み、ブランチ`main`）
-- **更新基準日:** 2026-11-15
-- **直近の実機検証版:** **M43B-7 P2**（`src/pd_pps/firmware/experiments/43b7_p2_session_refactor`。R01～R03回帰試験済み。ビルドBIN同一性の独立確認は別途）
-- **現在地:** P0（回帰テスト基盤）、P1（重複コード削減）、P2（`main.c`責務分離）の主要実機回帰検証が完了。次工程はP3（診断整理・PC側可視化）。USB接続時GoodCRC失敗とVBUS低下は未解決。
-- **原則:** 正常動作の実績があるM13b、履歴版M43A、診断版M43B-5、P0/P1版M43B-6、P2版M43B-7をそれぞれ保全し、今後のP3は独立した実験版にする。
+- **更新基準日:** 2026-11-17
+- **直近の実機検証版:** **M43B-8 B**（`src/pd_pps/firmware/experiments/43b8b_pps_control`。PPS CDC設定と実電圧変化を確認。詳細は`docs/M43B8_AB_VERIFICATION.md`）
+- **現在地:** M43B-8 AでPDO/APDO選択を分離、M43B-8 BでPC USB CDCからのPPS電圧・要求電流変更を実機確認。M5（PC制御）・M7（安全性）は進行中。USB接続順序ごとの不安定性は未解決。
+- **原則:** M13b、M43A、M43B-5/6/7、M43B-8 A/Bをそれぞれ独立した実験版として保全。次の安全性・切断再接続の実験も別版で実施する。
 
 > このREADMEは、開発環境とチャット連携の入口です。**単一Gitルートは本ディレクトリに確立済み**です。`src/pd_pps/ch32fun`はSubmoduleとして登録済みです。今回のルールZIPの配布・展開はWindows上での適用やGitコミットを意味しません。詳細な実験・ビルド手順は [`src/pd_pps/README.md`](src/pd_pps/README.md) を参照します。
+
+## 2026-11-17：M43B-8 A/Bの現行結果（過去のM43B-7記載に優先）
+
+- **M43B-8 A：** `src/pd_pps/firmware/experiments/43b8_power_plan_refactor`。PDO/APDO選択・RDO構築を`pd_power.c/h`へ分離。7V/1A既定動作のまま、PC USB CDC/PPS同時動作を**120/120コマンド成功、PPS更新24/24完了**で検証。
+- **M43B-8 B：** `src/pd_pps/firmware/experiments/43b8b_pps_control`。`PPS GET`/`PPS SET`/`PPS STATUS`を追加。実機で7.00→7.02→7.00V（契約値）、7.00→7.20→7.00V（DMM約6.95→7.15→6.95V）、要求電流1,000→500→1,000mA、無効値3件拒否を確認。
+- **検証：** Python **74件実行・65 PASS・9 SKIP**、RISC-VビルドPASS（FLASH **26,184B**、RAM **5,904B**）。SKIPにはネイティブCテストが含まれる。
+- **未検証：** 通信断時安全動作、接続順序、複数充電器、長時間/負荷試験、電流制限実測。`ma`は電流の要求値であり、実測電流ではない。
+- **記録の正本：** [`docs/M43B8_AB_VERIFICATION.md`](docs/M43B8_AB_VERIFICATION.md)。本READMEのこれより下にあるM43B-7/M43A主体の節は**履歴**として保持する。
 
 ## 1. ディレクトリの役割
 
