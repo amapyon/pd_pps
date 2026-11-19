@@ -1,8 +1,9 @@
-# PD PPS ZIPファイル作成規約 v2.3
+# PD PPS ZIPファイル作成規約 v2.4
 
 - 改訂日：2026-11-15
 - 正本：`C:\pj\pd_pps\pd_pps_zip_rules.md`
 - 旧規約の内容は改訂履歴に保持する。正本ファイル名は版なしの`pd_pps_zip_rules.md`に固定し、今後の規約改訂も同じファイルで行う。旧ZIPは遡って改変しない。
+- v2.4追補：二重USB接続（CDC ON+PD/PPS）を主要試験条件とし、`fw`型ZIPはインストールから明示FLASHまでの一括実行スクリプトを必須とする。
 - v2.3追補：規約文書のファイル名から版番号を削除し、`pd_pps_zip_rules.md`を単一正本とする。
 - v2.2追補：ZIPファイル名から`pd_pps_`を除去。全体試験計画は`ROADMAP.md`、個別試験計画は実験KIT内`tests/TEST_PLAN.md`に統一。製品仕様`docs/PRODUCT_SPEC.md`を維持。
 - v2.1追補：Gitルートの`.gitattributes`／`.editorconfig`でLF改行を統一。既存ログを変換しない。
@@ -20,7 +21,7 @@
 
 ZIP内のファイル名・フォルダー名にはASCII英数字、`-`、`_`、`.`だけを使用する。ディレクトリ階層には`/`を使う。日本語・絶対パス・`..`・重複パス・NTFS代替データストリーム・シンボリックリンクを含めない。ZIP直下は**ZIPの拡張子を除いた名前の単一親フォルダー**とする。版は不変で、変更時はvNNを増やす。
 
-必須ファイル：`README.md`、`CHANGELOG.md`、`manifest.json`、`install.ps1`。ファイル本文はUTF-8でよい。
+必須ファイル：`README.md`、`CHANGELOG.md`、`manifest.json`、`install.ps1`。**新規`fw`型ZIPは`Run-Firmware.ps1`も必須**とする。ファイル本文はUTF-8でよい。
 
 ルール配布の例：
 
@@ -52,6 +53,7 @@ fw_m43b_goodcrc_v01_20261115/
   CHANGELOG.md
   manifest.json
   install.ps1
+  Run-Firmware.ps1   # ZIP検証後からFLASHまでを一括管理
   tests/
     TEST_PLAN.md        # 個別の試験手順と判定条件
   firmware/
@@ -81,7 +83,7 @@ fw_m43b_goodcrc_v01_20261115/
 - `-Apply`指定時のみ、manifestの配置宣言に従ってファイルをコピーし、コピー前後にSHA-256を検証する。
 - **バックアップは作成しない**（ユーザーの明示的な方針）。GitHub履歴が未追跡・未コミットのローカルファイルを保護しているとは限らない。
 - 既存ファイルが同じハッシュならスキップ。既知の旧版SHA-256と一致する場合は`-Apply`で更新可能。それ以外は**変更前に中止**し、実際の差分を確認したうえで`-ReplaceExisting`を明示する場合だけ更新する。
-- 無関係なファイル削除、旧`M*_TEST_PLAN.md`の自動削除、ログの自動移動、ファームウェアの書き込み、Gitの自動commit/Pushを行わない。個別TEST_PLANの移行・削除はユーザーによる別操作。
+- **`install.ps1`単体**はファイル配置専用とし、無関係なファイル削除、旧`M*_TEST_PLAN.md`の自動削除、ログの自動移動、ファームウェアの書き込み、Gitの自動commit/Pushを行わない。`fw`型の上位`Run-Firmware.ps1`からは、個別の`FLASH`確認を経て書き込みまで進む。個別TEST_PLANの移行・削除はユーザーによる別操作。
 - Gitルートと`ch32fun` Submoduleは既に復旧済み。現行`.git`とSubmoduleの管理情報をルール適用の副作用で削除・変更しない。GitHubへの強制Pushは行わない。
 - インストール先はプロジェクトルートからの安全な相対パスだけを許可し、`..`などでルート外へ書き込まない。
 
@@ -135,3 +137,27 @@ fw_m43b_goodcrc_v01_20261115/
 - **規約Markdownファイル名は固定**（`pd_pps_zip_rules.md`）。改訂版は同じ正本を更新し、版数と差分は本文、CHANGELOG、Git履歴で管理する。複数版の規約をGit管理のルートに並べない。
 - **配布ZIPアーカイブのファイル名は別ルール**であり、再現性のため`<type>_<module>_vNN_YYYYMMDD.zip`の版番号を保持する。先頭に`pd_pps_`は付けない。過去のZIPは自動改名しない。
 - 旧名の規約を整理するときは、固定名への新規導入・内容確認を完了してから、Git管理の変更と必要ならローカル削除をユーザーが個別実施する。
+
+
+## 12. v2.4：CDC ON二重通信とFLASHまでの一括実行
+
+### 標準の試験条件
+
+- 現在のGoodCRC診断は、**PC USB CDCとUSB PD/PPSを同時に接続して動作させること**を主要目的とする。試行で別条件が明示されない限り、`CDC ON`（PC通信用USB物理接続）＋PD充電器（CC1/CC2を指定）＋無負荷を標準とする。単なる旧版退行確認など、`CDC OFF`を実施する場合はその理由と試行IDを明記する。標準試験を勝手にOFFへ置き換えない。
+- `COM16`等のCOMポート名は接続の手掛かりであり、PD/USB両通信の成立を証明しない。CDC ON試験でCOMポートが存在することを「ケーブル接続異常」と判定しない。列挙・送受信・電気的接続を区別して記録する。
+- **配線の安全性は別の必須前提**：PCとPD充電器のD+/D-に共有疑いがある。二重接続要求はそのリスクを免除しない。D+/D-が電気的に競合しない構成、CC、VBUS/GND、逆給電の条件を守り、未検証の同時直結を安全と主張しない。ソフトウェアのfail-fastでは配線衝突は予防できない。
+
+### 新規`fw`型ZIPの必須エントリーポイント
+
+- ZIP直下の単一親フォルダーに**`Run-Firmware.ps1`**を同梱する。READMEにも、これを使う**一つの貼付可能な`& { ... }`PowerShell 5.1ブロック**を記載する。`Run-Firmware.ps1`自体をワンクリックで実行しても、`APPLY`と`FLASH`の確認を省略しない。
+- このランナーは、前提ファイル・ZIP/manifest SHA-256の確認から、展開、`install.ps1`のdry-run、ユーザーの`APPLY`、インストール後の確認、ホスト試験、CH32X035クロスビルド、BIN/ELFサイズ・ハッシュ確認、WCH-LinkEの`-i`プローブ、`FLASH`確認、書き込み、終了ログ確認まで**順序どおり1回の実行**で進める。BUILDで正常終了してFLASHを別途コピペする方式は標準にしない。
+- ファームウェア書き込み対象がCH32X035であること、BINが対象容量に収まること、前提の接続・給電状態を、書き込み前に表示・照合する。現在書き込み済みの版が置換されることを明記する。`FLASH`が入力されなければCANCELEDと表示し、書き込みしない。
+- どのステップでも前提・終了コード・ハッシュ・必須生成物・期待出力が異常なら即時`throw`し、**後続のビルドやFLASHを実行しない**。`& { ... }`、`$ErrorActionPreference='Stop'`、`Set-StrictMode`、`try/catch`再スロー、`$LASTEXITCODE`又は`Start-Process`の`ExitCode`検査を用いる。1本のスクリプトによるfail-fastは**ロールバックを保証しない**。
+- PowerShell 5.1で`minichlink`のstderrを`2>&1`に合成して`NativeCommandError`として誤停止させないよう、`Start-Process -RedirectStandardOutput/-RedirectStandardError -Wait -PassThru`等を使用する。プローブ結果の`Detected CH32X035`とプログラム結果`Image written.`、終了コードを検査し、ログは既存を上書きしない固有フォルダーに保存する。
+- `FLASH COMMAND PASSED`は書き込みコマンドの正常終了のみを意味し、PD/PPSやCDCの実機試験PASSを意味しない。実機ログ採取、SRAMダンプ取得、Git操作は目的に応じて独立した手順とし、暗黙に実行しない。
+- `rules`型・`diag`型などファームウェアを書き込まないZIPには、`Run-Firmware.ps1`もFLASHも不要。`rules`型インストーラーは従来どおり文書のみを更新する。
+
+### 配布と検証の記録
+
+- READMEと`tests/TEST_PLAN.md`に、同時接続条件、電気的前提、実行シーケンス、`APPLY`・`FLASH`の2段階確認、失敗時停止、ログ保存先、試験結果の判定単位を示す。
+- 受入報告は`ZIP検証`／`適用`／`ホストテスト`／`ビルド`／`FLASH`／`実機通信`を区別し、未実施をPASSとしない。Windows実機で試せていないコード・ツール連携は`NOT_TESTED`と明記する。
