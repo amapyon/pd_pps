@@ -1,5 +1,15 @@
 # PD PPS 開発環境
 
+<!-- M43B8_CD_RESULT_20261122_START -->
+## 2026-11-22：M43B-8 C/D 切断・再接続／G01故障注入の実機結果
+
+- **M43B-8 C**：外部USB-PD/USB-CDC分離アダプターで7V/要求上限1A PPS・周期更新、COM Close／PC USB抜き差し、PD切断後の電源断／復帰が対象条件でPASS。1N5819×2の外部電源ORでMCUを維持したままCC DETACHによる契約失効（C04-B5）およびPD再接続・再契約（C04-B6）を確認。
+- **M43B-8 D**：ベンチ専用故障注入版。FLASH 27,000B／RAM 5,924B、MCU UUID `c0-08-ab-cd-28-31-bc-5c`、BIN読み戻しSHA-256一致。通常PPS（P1）、FIFO満杯に伴うDETACH通知欠落とCCガード（P2：`fired/full/dropped/guard=1`、`lost_delta=1`）、故障注入後のPPS再契約（P3）を実機でPASS。
+- **限定事項**：決定的な故障注入であり、自然発生する全競合・高負荷・他Source・3V3連続波形・製品安全性を網羅しない。要求1Aは実測電流ではない。M5/M7は引き続き進行中。
+- **詳細とDMM証跡**：[M43B-8 C/D 実機検証記録](docs/M43B8_CD_VERIFICATION.md)。CDC生ログは`diagnostics/`でローカル保管（Git除外）。故障注入専用D版のFlashを製品運用の推奨とみなさない。
+<!-- M43B8_CD_RESULT_20261122_END -->
+
+
 CH32X035F8U6（WeActStudio CH32X035 CoreBoard V1.0）を使用した、USB Power Delivery（USB PD）／Programmable Power Supply（PPS）Sink開発の**ローカル開発環境ルート**です。
 
 - **配置先:** `C:\pj\pd_pps\README.md`（このファイル）
