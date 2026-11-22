@@ -4,6 +4,15 @@
 **2026-11-22製品仕様決定：書き込み・復旧はWCH-LinkEのSWDのみ。PC通信用Type-CはCDCコマンド送信・情報／計測取得・PPS設定に限定し、CDCファーム更新・USB ISP・MSC/UF2は製品非採用。** SWDチップ識別成功、復旧試験は未実施。[M6決定記録](docs/M6_FIRMWARE_UPDATE_POLICY.md)。
 <!-- /M6_WCH_LINKE_POLICY_20261122 -->
 
+<!-- M6_USB_UPDATE_DECISION_20261122_START -->
+## 2026-11-22：M6 USB-C②からのファームウェア更新方針（過去決定・撤回済み）
+
+- **旧製品要求（撤回）**：当初はPC通信用USB-C②からWCH-LinkEなしでファームウェアを更新する案を決定していたが、2026-11-22の後続判断で撤回。**製品の書き込み・復旧はWCH-LinkE＋SWDのみ**。
+- **旧技術候補（製品非採用）**：CH32X035の工場出荷時USB ISPとCDCコマンドからのBOOT_MODE／ソフトリセット遷移。USB ISPのVID/PID列挙は確認したが、チップ識別・書き込みは未検証。現行製品の実装対象にはしない。
+- **旧計画（終了）**：`docs/M6_USB_FIRMWARE_UPDATE_PLAN.md`によるUSB-C②の書き込み評価は履歴扱い。**現行M6**は[WCH-LinkE/SWD製品方針](docs/M6_FIRMWARE_UPDATE_POLICY.md)に従い、SWD書き込み手順・イメージ検証・復旧受入試験を実施する。
+- **現行の保存状況**：後続のWCH-LinkE専用方針はGitHubコミット`63caf2d`で公開済み。Flash書き込み・復旧試験は行っていない。ローカル文書の競合を解消する作業はGitHubの新規コミットとは別。
+<!-- M6_USB_UPDATE_DECISION_20261122_END -->
+
 <!-- M43B8_CD_RESULT_20261122_START -->
 ## 2026-11-22：M43B-8 C/D 切断・再接続／G01故障注入の実機結果
 
