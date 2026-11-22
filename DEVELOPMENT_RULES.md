@@ -146,3 +146,13 @@ Flash、配線変更、故障注入、ファイル・Git管理情報の削除、
 - 規約の版数や変更理由は**本文のバージョン／改訂日、配布KITのCHANGELOG、Gitのコミット履歴**で追跡する。版ごとの規約文書をルートで並行管理しない。
 - 旧名の規約ファイルが存在するときは、最新版を新しい固定名で設置・内容検証してから、対象を指定したユーザー操作でGit管理から退役させる。インストーラーは旧ファイルを自動削除・移動しない。
 - ZIPアーカイブそのものの名前には引き続き`_vNN_YYYYMMDD`を使用し、既発行ZIPは改名しない。
+
+<!-- DEV_ENV_STANDARD_V01_20261122 -->
+## 13. Chat-independent environment and one-shot execution (2026-11-22 supplement)
+
+- Use `config/dev_environment.json` and `scripts/project/Run-DevChecks.ps1` before proposing new tool-dependent actions. Tool paths in the README are examples until confirmed on the Windows PC. Do not assume native `gcc` is present; distinguish xPack RISC-V GCC from a Windows-native C compiler.
+- **Single command is mandatory for a routine workflow**: ZIP validation/unpacking, dry-run validation, authorized apply, post-verify, compatible tests, build when applicable, evidence and reporting shall be automated within ONE entrypoint. Do not require the user to separately invoke dry-run, apply, tests, and build. This supplements section 3 and its prior one-shot requirement; it does not waive any safety gate.
+- Safe file creation/update can be authorized by `-Apply` in that one invocation. Flash, new device power/rewiring, destructive Git operations, and fault injection require their own explicit consent; do not silently proceed. Missing mandatory prerequisites stop the workflow; optional native-C host tests are `SKIP`/`NOT_TESTED`, NEVER `PASS`.
+- New and revised `.ps1` files must pass AST syntax inspection, executable/function-shadowing checks (avoid `function Git`), and protected-variable assignment checks (avoid `$Host`). Pass on the target Windows PowerShell 5.1 must be demonstrated separately; if not run, mark `NOT_TESTED`.
+- One run must print or save the cause of a failure without requiring manual log extraction in another step. Preserve original raw logs. No automatic backups, Git commits/pushes, Flash, or global environment changes.
+- The persistent standard and exact commands are documented in `docs/DEVELOPMENT_ENVIRONMENT_STANDARD.md`. A new chat must consult these artifacts instead of relying on chat memory.

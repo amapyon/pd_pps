@@ -343,3 +343,13 @@ v3は`logs\`の対象ファイルを読み取り、**`analysis\`直下の固定�
 ---
 
 **文書の位置付け:** このREADMEはWindows上の`C:\pj\pd_pps\`全体の運用案内です。直近の試験対象はM43B-7 P2ですが、この文書の作成だけでPCのファイル・実機FLASH・Git状態を変更したものではありません。
+
+<!-- DEV_ENV_STANDARD_V01_20261122 -->
+## 2026-11-22: Development environment standardization (one-shot workflows)
+
+- Canonical environment definition: `config/dev_environment.json`.
+- Tool discovery and single-run validation: `scripts/project/Run-DevChecks.ps1`.
+- Environment and release gates: `docs/DEVELOPMENT_ENVIRONMENT_STANDARD.md`.
+- New chat: read the files above **before generating** any Windows script.
+- **Use one invocation per workflow.** Each runner must do safe preflight, apply (when explicitly authorized), post-check, tests, and report automatically. Do not give users consecutive manual command blocks for normal safe work. Hardware Flash / destructive operations still require an explicit gate.
+- Tool availability and versions are measured on Windows, not inferred from examples. A missing native C compiler is `OPTIONAL_MISSING` for a cross-build, not an automatic build failure.

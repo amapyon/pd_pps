@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "project": "PD/PPS Explorer",
+  "root": "C:\\pj\\pd_pps",
+  "shell": {
+    "name": "Windows PowerShell",
+    "major": 5,
+    "minor": 1
+  },
+  "platform": "Windows 11",
+  "mcu": "CH32X035F8U6",
+  "tool_resolution": "project_root_relative_first",
+  "tools": [
+    {
+      "id": "Git",
+      "commands": [
+        "git.exe"
+      ],
+      "required_for": [
+        "Inspect"
+      ],
+      "optional": false
+    },
+    {
+      "id": "Python",
+      "commands": [
+        "python.exe"
+      ],
+      "required_for": [],
+      "optional": true
+    },
+    {
+      "id": "RiscvGcc",
+      "relative_path": "tools/xpack-riscv-none-elf-gcc-14.2.0-3/bin/riscv-none-elf-gcc.exe",
+      "required_for": [
+        "Build"
+      ],
+      "optional": false
+    },
+    {
+      "id": "Make",
+      "relative_path": "tools/xpack-windows-build-tools-4.4.1-3/bin/make.exe",
+      "required_for": [
+        "Build"
+      ],
+      "optional": false
+    },
+    {
+      "id": "NativeC",
+      "commands": [
+        "gcc.exe",
+        "clang.exe",
+        "cc.exe"
+      ],
+      "required_for": [
+        "HostC"
+      ],
+      "optional": true
+    },
+    {
+      "id": "Minichlink",
+      "relative_path": "src/pd_pps/ch32fun/minichlink/minichlink.exe",
+      "required_for": [
+        "Hardware"
+      ],
+      "optional": true
+    }
+  ],
+  "paths": {
+    "source": "src/pd_pps",
+    "ch32fun": "src/pd_pps/ch32fun",
+    "build_helper": "src/pd_pps/dev-workspace/pd-pps.ps1",
+    "diagnostics": "diagnostics/environment"
+  },
+  "policy": {
+    "native_c_host_test": "OPTIONAL_MISSING_is_SKIP_not_PASS",
+    "no_auto_flash": true,
+    "no_auto_commit_push": true,
+    "no_auto_dependency_install": true,
+    "one_run_per_kit": true,
+    "manual_gates": [
+      "FLASH",
+      "hardware_rewiring",
+      "dangerous_injection"
+    ]
+  }
+}

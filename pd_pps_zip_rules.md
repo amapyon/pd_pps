@@ -173,3 +173,12 @@ fw_m43b_goodcrc_v01_20261115/
 
 - READMEと`tests/TEST_PLAN.md`に、同時接続条件、電気的前提、実行シーケンス、`APPLY`・`FLASH`の2段階確認、失敗時停止、ログ保存先、試験結果の判定単位を示す。
 - 受入報告は`ZIP検証`／`適用`／`ホストテスト`／`ビルド`／`FLASH`／`実機通信`を区別し、未実施をPASSとしない。Windows実機で試せていないコード・ツール連携は`NOT_TESTED`と明記する。
+
+<!-- DEV_ENV_STANDARD_V01_20261122 -->
+## 13. Single-run package handoff and developer environment (2026-11-22 supplement)
+
+- Package instructions MUST provide one pasteable PowerShell 5.1 invocation from `C:\pj\pd_pps`. That one invocation automatically verifies the ZIP checksum and manifest, extracts the KIT if needed, performs its dry-run, applies authorized safe changes, verifies them, executes relevant tests/builds, and prints a unified report. No staged series of user commands for routine work.
+- Existing `install.ps1` remains dry-run by default; the KIT-level runner is responsible for invoking it in dry-run and `-Apply` modes in the same execution. This supplements section 12; it does not authorize Flash without its explicit safety gate.
+- Follow `config/dev_environment.json`, `scripts/project/Test-DevEnvironment.ps1`, and the standard in `docs/DEVELOPMENT_ENVIRONMENT_STANDARD.md`. Native C compilers are optional for cross-build and must not be confused with xPack RISC-V GCC. Missing optional host tests are `SKIP`/`NOT_TESTED`.
+- Before packaging, inspect PowerShell with AST for protected automatic variables (`$Host`, `$PID`) and function/executable collisions (`Git`, `Make`, etc.). Verify fail-fast and missing-tool cases. Report Windows PowerShell 5.1 execution separately; never claim PASS without a run.
+- Do not introduce silent driver/PATH installation, device resets, firmware Flash, Git commit/push, or destructive file replacement as a side effect of safe setup.
