@@ -1,5 +1,9 @@
 # M6 and shared development environment integration (2026-11-22)
 
+<!-- M6_WCH_LINKE_POLICY_20261122 -->
+**2026-11-22 decision superseding prior M6 USB-update experiment plans:** Product firmware programming/recovery uses **WCH-LinkE over SWD only**. PC USB-C #2 is USB CDC command/data/control only, not a firmware transfer or BOOT interface. The M6 USB ISP entry build remains a historical disabled experiment; no product integration. [Policy](M6_FIRMWARE_UPDATE_POLICY.md).
+<!-- /M6_WCH_LINKE_POLICY_20261122 -->
+
 ## Scope
 
 - Standardization v01 is installed in the local Git root and checked first.

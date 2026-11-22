@@ -1,5 +1,9 @@
 # PD/PPS Explorer 回路・配線リファレンス（評価機）
 
+<!-- M6_WCH_LINKE_POLICY_20261122 -->
+**2026-11-22製品方針：追加PC用USB-CはCDCコマンド／情報取得専用で、ファームウェア書き込み・BOOT移行には使用しない。書き込み・復旧はWCH-LinkEをSWD端子へ接続する。** 現評価機のUSB ISP実験は履歴として保持。製品PCBのSWDコネクタ、給電、安全性は未確定。[方針](../../../docs/M6_FIRMWARE_UPDATE_POLICY.md)。
+<!-- /M6_WCH_LINKE_POLICY_20261122 -->
+
 | 項目 | 内容 |
 |---|---|
 | 文書ID | PD-PPS-HW-WIRING-001 |
@@ -146,7 +150,7 @@ USBデータ専用試験中、J1にPD充電器をつながないため、M8の�
 | PA2/PA3 | INA226、OLED（共有I²C） | INA226ソフトI²C |
 | PA0 | PD17/実験11のVBUS ADC（外付け分圧） | 使用しない |
 | PA4/PA5/PA6/PA7 | EC11、スイッチ類（実験16系） | 使用しない |
-| PC18/PC19 | WCH-LinkEデバッグ | 書き込み／診断用 |
+| PC18/PC19 | WCH-LinkEデバッグ／SWD | **製品で採用する唯一の書き込み・復旧経路**（製品PCB端子設計は未決定） |
 
 M8は**USB CDC＋INA226の単独実験**。PD、OLED、EC11、ADCとの同時動作はM8では実証していない。
 

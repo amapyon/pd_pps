@@ -1,5 +1,9 @@
 # PD PPS 開発環境
 
+<!-- M6_WCH_LINKE_POLICY_20261122 -->
+**製品方針（2026-11-22）：ファームウェア書き込み・復旧はWCH-LinkE＋SWDのみ。PC用USB-C②はUSB CDC-ACMのコマンド送受信・情報取得・PPS設定用で、ファーム転送／更新・BOOT移行・MSC/UF2は製品機能に含めない。** [詳細](docs/M6_FIRMWARE_UPDATE_POLICY.md)。既存実験のUSB ISPログは履歴として保持。
+<!-- /M6_WCH_LINKE_POLICY_20261122 -->
+
 <!-- M43B8_CD_RESULT_20261122_START -->
 ## 2026-11-22：M43B-8 C/D 切断・再接続／G01故障注入の実機結果
 

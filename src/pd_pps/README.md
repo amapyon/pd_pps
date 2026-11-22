@@ -1,5 +1,9 @@
 # PD PPS 開発ワークスペース
 
+<!-- M6_WCH_LINKE_POLICY_20261122 -->
+**製品インターフェース方針（2026-11-22）：PC用USB-C②はCDC-ACMコマンド／情報取得／PPS設定のみ。ファーム書き込み／復旧はWCH-LinkE経由のSWDのみ。** USB ISP/BOOT/UF2による製品更新は採用しない。既存FlashコマンドはWCH-LinkE利用の開発用手順であり、書き込み前の明示承認と安全ゲートが必要。[決定記録](../../docs/M6_FIRMWARE_UPDATE_POLICY.md)。
+<!-- /M6_WCH_LINKE_POLICY_20261122 -->
+
 CH32X035を使用したUSB Power Delivery（PD）／Programmable Power Supply（PPS）の実験用Visual Studio Codeワークスペースです。
 
 **運用方針：** 2026年11月8日に旧ルート直下の実験25フォルダーを`firmware/experiments/`へ移行しました。過去の実験コードはスナップショットとして保持し、製品向け統合版は将来`firmware/product/`へ新規作成します（**現時点では存在しません**）。

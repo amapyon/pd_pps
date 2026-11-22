@@ -1,5 +1,9 @@
 # PD PPS 開発引き継ぎ（チャット切替用）
 
+<!-- M6_WCH_LINKE_POLICY_20261122 -->
+**2026-11-22製品仕様決定：書き込み・復旧はWCH-LinkEのSWDのみ。PC通信用Type-CはCDCコマンド送信・情報／計測取得・PPS設定に限定し、CDCファーム更新・USB ISP・MSC/UF2は製品非採用。** SWDチップ識別成功、復旧試験は未実施。[M6決定記録](docs/M6_FIRMWARE_UPDATE_POLICY.md)。
+<!-- /M6_WCH_LINKE_POLICY_20261122 -->
+
 <!-- M43B8_CD_RESULT_20261122_START -->
 ## 2026-11-22：M43B-8 C/D 切断・再接続／G01故障注入の実機結果
 
