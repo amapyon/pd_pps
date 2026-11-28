@@ -1,5 +1,16 @@
 # PD PPS 開発引き継ぎ（チャット切替用）
 
+<!-- HW_DESIGN_20261128_START -->
+## 2026-11-28：Rev.Aハードウェア設計方針（最新）
+
+- **確定（ユーザー判断）**：製品MCUはCH32X035G8R6（QSOP28）、100W耐性、PPS下限3.3V、PPS低電圧（ユーザー原文「5V以下」）はPC外部給電必須。PDとPCは通常運転用の2入力理想ダイオードOR、PC側VBUSはeFuse。WCH-LinkEはORに入れずMCU電源へ直接給電し、他電源と同時接続禁止。JLCPCB PCBAを基本とし、手はんだの方が大幅に安い部品は別実装を検討する。
+- **設計候補（未確定・未検証）**：SPR 20V/5A、PPS上限21V、AP63200による4.0V降圧＋TPS25947×2＋AP2112K-3.3、PC優先に近い低電圧OR、WCH-LinkE 3.3V限定・物理切替ジャンパー。5.00VちょうどのPPS設定を単独で許容する先行提案は未承認。固定5V PDOの単独運転を維持する案と区別する。
+- **安全ゲート**：低電圧運転中のPC給電消失時は負荷遮断・再起動時出力OFF、固定5V復帰を目標とする。自動復帰は未検証。低電圧許可はCDC列挙ではなく有効な給電を検出する。出力保護、降圧故障時OVP、逆流・突入・寄生給電・3V3過渡・USB電流予算、100W経路の温度とケーブル能力を評価する。
+- **次の作業**：PWR03/PWR04/PWR06の詳細設計（消費電流予算・低入力時の起動・保護・部品実装費）と100W負荷経路の保護選定。現行試作のF8U6、既存実験版・生ログは変更しない。
+
+詳細：[Rev.A ハードウェア設計決定記録](docs/HARDWARE_DESIGN_DECISIONS.md)。製品仕様の正本は[PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md) v0.4。確定要求を統合済み。過去の実験・方針記載と異なる場合は本日付の製品判断を優先し、実測履歴は変更しない。
+<!-- HW_DESIGN_20261128_END -->
+
 <!-- M6_WCH_LINKE_POLICY_20261122 -->
 **2026-11-22製品仕様決定：書き込み・復旧はWCH-LinkEのSWDのみ。PC通信用Type-CはCDCコマンド送信・情報／計測取得・PPS設定に限定し、CDCファーム更新・USB ISP・MSC/UF2は製品非採用。** SWDチップ識別成功、復旧試験は未実施。[M6決定記録](docs/M6_FIRMWARE_UPDATE_POLICY.md)。
 <!-- /M6_WCH_LINKE_POLICY_20261122 -->
@@ -23,8 +34,8 @@
 <!-- M43B8_CD_RESULT_20261122_END -->
 
 
-- 更新日：2026-11-17
-- 文書状態：**M43B-8 A/Bまでの実機結果を反映。Gitコミット・Pushは実際の実行結果で判定し、本書の作成だけでは完了としない。**
+- 更新日：2026-11-28（設計判断。実機結果は下記の日付）
+- 文書状態：**M43B-8 C/Dまでの実機結果と11/28の製品設計判断を反映。Gitコミット・Pushは実際の実行結果で判定し、本書の作成だけでは完了としない。**
 - 正本：`C:\pj\pd_pps\HANDOFF.md`
 
 ## 1. 新しいチャットで最初に読む資料
@@ -32,7 +43,8 @@
 1. `DEVELOPMENT_RULES.md`：開発・チャット・検証の共通規約。
 2. `ROADMAP.md`：製品目標と正式M0～M10の進捗。
 3. `HANDOFF.md`：今回の状態、仮説、次の実験。
-4. 必要に応じ`README.md`、`pd_pps_zip_rules.md`、実コードと生ログ。
+4. `docs/HARDWARE_DESIGN_DECISIONS.md`：Rev.Aの確定要求・候補・受入ゲート。
+5. 必要に応じ`README.md`、`pd_pps_zip_rules.md`、`docs/PRODUCT_SPEC.md`、実コードと生ログ。
 
 ChatGPTがユーザーPCの最新ファイルを直接参照できるとは限らない。必要な資料は添付する。**この文書はスナップショットであり、現PCのファイルやGit状態が同一とは保証しない。**
 
@@ -40,11 +52,11 @@ ChatGPTがユーザーPCの最新ファイルを直接参照できるとは限�
 
 PD/PPS Explorer：USB PD/PPSの能力取得、PPS設定、INA226測定、スタンドアロン操作、PC通信を実現し、最終的にBOOTHで完成品とベアPCBを販売する。
 
-- 正式マイルストーン：M0～M3は限定された範囲で**完了**、M4・M5・M7は**進行中**、M6・M8～M10は**未着手**。
-- ハードウェア：WeActStudio CH32X035 CoreBoard、WCH-LinkE、PD Sink用USB-C、PC USB CDC用の別接続。
-- **直近の実機検証版：M43B-8 B**（`src\pd_pps\firmware\experiments\43b8b_pps_control`）。PPS CDC設定、DMMでの実電圧変化、要求電流設定の往復操作を確認。M43B-7は比較基準。
+- 正式マイルストーン：M0～M3は限定された範囲で**完了**、M4・M5・M7は**進行中**、M6は方針決定・SWD識別済み／復旧未検証、M9は設計検討に着手、M8・M10は**未着手**。
+- 現行実験ハードウェア：WeActStudio CH32X035 CoreBoard、WCH-LinkE、PD Sink用USB-C、PC USB CDC用の別接続。
+- **直近の実機検証：M43B-8 C/D（上記11/22の記録）。基本設定APIの基準版：M43B-8 B**（`src\pd_pps\firmware\experiments\43b8b_pps_control`）。PPS CDC設定、DMMでの実電圧変化、要求電流設定の往復操作を確認。M43B-7は比較基準。
 - 正常動作実績のあるPHY参照元：**PD17 M13b**、`src\pd_pps\firmware\experiments\17_pd_spr_sink_rebuild`。
-- 直近の開発：**M43B-8 Aの電力選択分離**、**M43B-8 BのPC設定API**を実機確認。次はM43B-8 Cに進む前にPC USB/COM/PDの切断・再接続の安全性試験（C01～C05）。接続条件によるPD失敗例は残存。
+- 直近の開発：**M43B-8 Aの電力選択分離**、**M43B-8 BのPC設定API**を実機確認。C/Dの対象試験結果は冒頭の11/22記録を優先。次は未検証条件と製品回路の詳細設計。接続条件によるPD失敗例は残存。
 - **M13b・M43A・M43B-5/6/7・M43B-8 A/Bを保全**する。PHY/USBFS ISR/時間定数の変更を伴う原因対策は独立した実験で行う。
 
 ## 3. 実機で確認したこと

@@ -1,5 +1,16 @@
 # PD PPS 開発環境
 
+<!-- HW_DESIGN_20261128_START -->
+## 2026-11-28：Rev.Aハードウェア設計方針（最新）
+
+- **確定（ユーザー判断）**：製品MCUはCH32X035G8R6（QSOP28）、100W耐性、PPS下限3.3V、PPS低電圧（ユーザー原文「5V以下」）はPC外部給電必須。PDとPCは通常運転用の2入力理想ダイオードOR、PC側VBUSはeFuse。WCH-LinkEはORに入れずMCU電源へ直接給電し、他電源と同時接続禁止。JLCPCB PCBAを基本とし、手はんだの方が大幅に安い部品は別実装を検討する。
+- **設計候補（未確定・未検証）**：SPR 20V/5A、PPS上限21V、AP63200による4.0V降圧＋TPS25947×2＋AP2112K-3.3、PC優先に近い低電圧OR、WCH-LinkE 3.3V限定・物理切替ジャンパー。5.00VちょうどのPPS設定を単独で許容する先行提案は未承認。固定5V PDOの単独運転を維持する案と区別する。
+- **安全ゲート**：低電圧運転中のPC給電消失時は負荷遮断・再起動時出力OFF、固定5V復帰を目標とする。自動復帰は未検証。低電圧許可はCDC列挙ではなく有効な給電を検出する。出力保護、降圧故障時OVP、逆流・突入・寄生給電・3V3過渡・USB電流予算、100W経路の温度とケーブル能力を評価する。
+- **開発環境と製品の区別**：既存WeActStudio F8U6は実験用、G8R6は新規製品基板用。既存ソース・配線・試験結果はそのまま保全する。
+
+詳細：[Rev.A ハードウェア設計決定記録](docs/HARDWARE_DESIGN_DECISIONS.md)。製品仕様の正本は[PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md) v0.4。確定要求を統合済み。過去の実験・方針記載と異なる場合は本日付の製品判断を優先し、実測履歴は変更しない。
+<!-- HW_DESIGN_20261128_END -->
+
 <!-- M6_WCH_LINKE_POLICY_20261122 -->
 **製品方針（2026-11-22）：ファームウェア書き込み・復旧はWCH-LinkE＋SWDのみ。PC用USB-C②はUSB CDC-ACMのコマンド送受信・情報取得・PPS設定用で、ファーム転送／更新・BOOT移行・MSC/UF2は製品機能に含めない。** [詳細](docs/M6_FIRMWARE_UPDATE_POLICY.md)。既存実験のUSB ISPログは履歴として保持。
 <!-- /M6_WCH_LINKE_POLICY_20261122 -->
@@ -14,12 +25,12 @@
 <!-- M43B8_CD_RESULT_20261122_END -->
 
 
-CH32X035F8U6（WeActStudio CH32X035 CoreBoard V1.0）を使用した、USB Power Delivery（USB PD）／Programmable Power Supply（PPS）Sink開発の**ローカル開発環境ルート**です。
+現行の実験ではCH32X035F8U6（WeActStudio CH32X035 CoreBoard V1.0）を使用する、USB Power Delivery（USB PD）／Programmable Power Supply（PPS）Sink開発の**ローカル開発環境ルート**です。
 
 - **配置先:** `C:\pj\pd_pps\README.md`（このファイル）
 - **Git管理ルート:** `C:\pj\pd_pps`（移行済み、ブランチ`main`）
-- **更新基準日:** 2026-11-17
-- **直近の実機検証版:** **M43B-8 B**（`src/pd_pps/firmware/experiments/43b8b_pps_control`。PPS CDC設定と実電圧変化を確認。詳細は`docs/M43B8_AB_VERIFICATION.md`）
+- **更新基準日:** 2026-11-28（製品設計方針。実機記録は各日付）
+- **直近の実機検証:** M43B-8 C/D（上記11/22記録）。基本設定APIの基準版：**M43B-8 B**（`src/pd_pps/firmware/experiments/43b8b_pps_control`。PPS CDC設定と実電圧変化を確認。詳細は`docs/M43B8_AB_VERIFICATION.md`）
 - **現在地:** M43B-8 AでPDO/APDO選択を分離、M43B-8 BでPC USB CDCからのPPS電圧・要求電流変更を実機確認。M5（PC制御）・M7（安全性）は進行中。USB接続順序ごとの不安定性は未解決。
 - **原則:** M13b、M43A、M43B-5/6/7、M43B-8 A/Bをそれぞれ独立した実験版として保全。次の安全性・切断再接続の実験も別版で実施する。
 
